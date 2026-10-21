@@ -58,6 +58,17 @@
         "hide": 0
       },
       {
+        "name": "min_runtime_ms",
+        "label": "Min runtime (ms)",
+        "type": "textbox",
+        "query": "1000",
+        "current": {
+          "text": "1000",
+          "value": "1000"
+        },
+        "hide": 0
+      },
+      {
         "name": "log_selector",
         "label": "Log selector",
         "type": "textbox",
@@ -2378,22 +2389,330 @@
       }
     },
     {
+      "type": "table",
+      "title": "Aggregate suggestions for slow queries",
+      "id": 26,
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "description": "Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine proposed for them. When a candidate is below the Compression threshold, AtScale does not create it; the suggestion is a user-defined aggregate on that fact dataset at the grain of the query (its attributes) with its measures. Check before you create it: the query's attributes must be coarser than the rejected grain (for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics they use. Queries that used an aggregate have no candidates and do not appear. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Loki (Engine log selector at the top); the engine log has no catalog or model, so only the time range applies.",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 94
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 1000,
+          "expr": "$log_selector |= \"atscale_query\" | json | event=\"atscale_query\" | env=~\"$env\" | query_type=~\"$query_type\" | catalog=~\"$catalog\" | model=~\"$model\" | duration_ms >= $min_runtime_ms"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "B",
+          "queryType": "range",
+          "maxLines": 1000,
+          "expr": "$engine_log_selector |= \"R050 candidate\" | regexp `R050 candidate (?P<candidate>\\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\\S+) and (?P<grain>.*?) is ` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | label_format grain=`{{ if .grain }}{{ .grain | replace \" ,\" \", \" }}{{ else }}(no keys){{ end }}` | label_format suggestion=`{{ if lt (float64 .score) (float64 \"$compression_threshold\") }}Create a user-defined aggregate on {{ .dataset }} with the attributes and measures of this query{{ else }}Score meets the threshold: AtScale can create this aggregate itself. If the query still misses, look for another cause{{ end }}`"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels",
+            "format": "auto",
+            "replace": false,
+            "keepTime": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "query_id",
+            "mode": "inner"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(start|query_id|catalog|model|duration_ms|miss_reason|dataset|grain|score|suggestion|attributes|measures)$"
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "duration_ms",
+                "destinationType": "number"
+              },
+              {
+                "targetField": "score",
+                "destinationType": "number"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "start": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "query_id": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "catalog": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "model": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "miss_reason": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "dataset": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "grain": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "suggestion": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "attributes": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "measures": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "duration_ms": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "max"
+                ]
+              },
+              "score": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "min"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "start": 0,
+              "query_id": 1,
+              "catalog": 2,
+              "model": 3,
+              "duration_ms (max)": 4,
+              "miss_reason": 5,
+              "dataset": 6,
+              "grain": 7,
+              "score (min)": 8,
+              "suggestion": 9,
+              "attributes": 10,
+              "measures": 11
+            },
+            "renameByName": {
+              "start": "Start (UTC)",
+              "query_id": "Query ID",
+              "catalog": "Catalog",
+              "model": "Model",
+              "duration_ms (max)": "Runtime",
+              "miss_reason": "Miss reason",
+              "dataset": "Fact dataset",
+              "grain": "Candidate grain",
+              "score (min)": "Compression score",
+              "suggestion": "Suggestion",
+              "attributes": "UDA attributes (query grain)",
+              "measures": "UDA measures"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Runtime",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Runtime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Compression score"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 3
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Suggestion"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 320
+              },
+              {
+                "id": "custom.inspect",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UDA attributes (query grain)"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 220
+              },
+              {
+                "id": "custom.inspect",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UDA measures"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 260
+              },
+              {
+                "id": "custom.inspect",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
       "type": "row",
       "title": "Engine JDBC pools (engine OpenTelemetry metrics)",
-      "id": 26,
+      "id": 27,
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 94
+        "y": 106
       },
       "panels": []
     },
     {
       "type": "timeseries",
       "title": "Average JDBC connection borrow time by pool",
-      "id": 27,
+      "id": 28,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2403,7 +2722,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 95
+        "y": 107
       },
       "targets": [
         {
@@ -2439,7 +2758,7 @@
     {
       "type": "timeseries",
       "title": "JDBC borrow timeouts and statements in flight",
-      "id": 28,
+      "id": 29,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2449,7 +2768,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 95
+        "y": 107
       },
       "targets": [
         {

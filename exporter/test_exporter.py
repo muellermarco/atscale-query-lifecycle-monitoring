@@ -183,6 +183,11 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(line["query_id"], "log1")
         self.assertEqual(line["outbound_wait_ms"], 660.0)
         self.assertEqual(line["start"], "1970-01-01T00:00:01.000Z")
+        self.assertEqual(line["measures"], "")
+        rec["attributes"], rec["measures"] = ["Store", "Fiscal Quarter"], ["Net Sales"]
+        line = x.query_log_line(x.query_labels("prod", rec), rec, phases, count)
+        self.assertEqual(line["attributes"], "Fiscal Quarter, Store")
+        self.assertEqual(line["measures"], "Net Sales")
         self.assertNotIn("user", line)
         self.assertNotIn("userId", line)
 

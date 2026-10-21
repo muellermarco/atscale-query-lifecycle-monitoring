@@ -333,6 +333,55 @@ panels.append({
     "options": {"showHeader": True, "cellHeight": "sm"}})
 y += 10
 
+SUG_FIELDS = ["start", "query_id", "catalog", "model", "duration_ms", "miss_reason", "dataset", "grain", "score",
+              "suggestion", "attributes", "measures"]
+EXP_Q = ('$log_selector |= "atscale_query" | json | event="atscale_query" | env=~"$env" | query_type=~"$query_type" '
+         '| catalog=~"$catalog" | model=~"$model" | duration_ms >= $min_runtime_ms')
+ENG_SUG = (ENG + ' | label_format suggestion=`{{ if lt (float64 .score) (float64 "$compression_threshold") }}'
+           'Create a user-defined aggregate on {{ .dataset }} with the attributes and measures of this query{{ else }}'
+           'Score meets the threshold: AtScale can create this aggregate itself. If the query still misses, look for another cause{{ end }}`')
+panels.append({
+    "type": "table", "title": "Aggregate suggestions for slow queries", "id": nid(), "datasource": LOKI,
+    "description": ("Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine "
+                    "proposed for them. When a candidate is below the Compression threshold, AtScale does not create it; the "
+                    "suggestion is a user-defined aggregate on that fact dataset at the grain of the query (its attributes) with "
+                    "its measures. Check before you create it: the query's attributes must be coarser than the rejected grain "
+                    "(for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics "
+                    "they use. Queries that used an aggregate have no candidates and do not appear. " + SCORE_HELP),
+    "gridPos": {"h": 12, "w": 24, "x": 0, "y": y},
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 1000, "expr": EXP_Q},
+                {"datasource": LOKI, "refId": "B", "queryType": "range", "maxLines": 1000, "expr": ENG_SUG}],
+    "transformations": [
+        {"id": "extractFields", "options": {"source": "labels", "format": "auto", "replace": False, "keepTime": False}},
+        {"id": "joinByField", "options": {"byField": "query_id", "mode": "inner"}},
+        {"id": "filterFieldsByName", "options": {"include": {"pattern": "^(%s)$" % "|".join(SUG_FIELDS)}}},
+        {"id": "convertFieldType", "options": {"conversions": [{"targetField": "duration_ms", "destinationType": "number"},
+                                                               {"targetField": "score", "destinationType": "number"}]}},
+        # the engine logs a candidate once per query part: one row per query, dataset and grain
+        {"id": "groupBy", "options": {"fields": dict(
+            {n: {"operation": "groupby", "aggregations": []} for n in SUG_FIELDS if n not in ("duration_ms", "score")},
+            duration_ms={"operation": "aggregate", "aggregations": ["max"]},
+            score={"operation": "aggregate", "aggregations": ["min"]})}},
+        {"id": "organize", "options": {"indexByName": {(n + " (max)" if n == "duration_ms" else n + " (min)" if n == "score" else n): i
+                                                       for i, n in enumerate(SUG_FIELDS)},
+                                       "renameByName": {"start": "Start (UTC)", "query_id": "Query ID", "catalog": "Catalog", "model": "Model",
+                                                        "duration_ms (max)": "Runtime", "miss_reason": "Miss reason", "dataset": "Fact dataset",
+                                                        "grain": "Candidate grain", "score (min)": "Compression score", "suggestion": "Suggestion",
+                                                        "attributes": "UDA attributes (query grain)", "measures": "UDA measures"}}},
+        {"id": "sortBy", "options": {"sort": [{"field": "Runtime", "desc": True}]}}],
+    "fieldConfig": {"defaults": {"custom": {"align": "auto", "filterable": True}},
+                    "overrides": [
+                        {"matcher": {"id": "byName", "options": "Runtime"}, "properties": [{"id": "unit", "value": "ms"}, {"id": "decimals", "value": 0},
+                            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}}, {"id": "color", "value": {"mode": "continuous-GrYlRd"}}]},
+                        {"matcher": {"id": "byName", "options": "Compression score"}, "properties": [{"id": "decimals", "value": 2},
+                            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+                            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "green", "value": 3}]}}]},
+                        {"matcher": {"id": "byName", "options": "Suggestion"}, "properties": [{"id": "custom.minWidth", "value": 320}, {"id": "custom.inspect", "value": True}]},
+                        {"matcher": {"id": "byName", "options": "UDA attributes (query grain)"}, "properties": [{"id": "custom.minWidth", "value": 220}, {"id": "custom.inspect", "value": True}]},
+                        {"matcher": {"id": "byName", "options": "UDA measures"}, "properties": [{"id": "custom.minWidth", "value": 260}, {"id": "custom.inspect", "value": True}]}]},
+    "options": {"showHeader": True, "cellHeight": "sm"}})
+y += 12
+
 panels.append(row("Engine JDBC pools (engine OpenTelemetry metrics)", y)); y += 1
 panels.append({
     "type": "timeseries", "title": "Average JDBC connection borrow time by pool", "id": nid(), "datasource": DS,
@@ -372,6 +421,8 @@ dash = {
          "current": {"text": '{container="engine"}', "value": '{container="engine"}'}, "hide": 0},
         {"name": "compression_threshold", "label": "Compression threshold", "type": "textbox", "query": "3",
          "current": {"text": "3", "value": "3"}, "hide": 0},
+        {"name": "min_runtime_ms", "label": "Min runtime (ms)", "type": "textbox", "query": "1000",
+         "current": {"text": "1000", "value": "1000"}, "hide": 0},
         {"name": "log_selector", "label": "Log selector", "type": "textbox", "query": '{container="exporter"}',
          "current": {"text": '{container="exporter"}', "value": '{container="exporter"}'}, "hide": 0},
         var("env", "Instance", 'label_values(%s, env)' % base, multi=False, include_all=False),

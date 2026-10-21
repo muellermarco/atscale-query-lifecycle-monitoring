@@ -170,12 +170,13 @@ Prometheus holds the averages and percentiles, but not single queries. For singl
 ```json
 {"event": "atscale_query", "query_id": "21b348fc-...", "env": "prod", "catalog": "Sales", "model": "Orders",
  "query_type": "User", "status": "successful", "optimization": "none", "miss_reason": "aggregate_created",
+ "attributes": "CountryCity", "measures": "Average Sales per Order",
  "start": "2026-10-21T17:55:14.000Z",
  "duration_ms": 2585.4, "inbound_ms": 11.4, "planning_ms": 43.0, "outbound_ms": 2530.7,
  "outbound_wait_ms": 9.7, "warehouse_ms": 2521.0, "result_processing_ms": 0.4, "subqueries": 1}
 ```
 
-The line has no user names and no query text.
+The line has the names of the attributes and measures the query used, but no user names and no query text.
 
 The table "Slowest queries" reads these lines from Loki. To use it:
 
@@ -219,7 +220,13 @@ The row "Aggregate candidates and compression score" shows these scores. It read
 
    Result: "Aggregate candidates by dataset and grain" lists each fact dataset and aggregate grain with its score. "Below threshold" counts the candidates that AtScale did not create because of the threshold.
 
-The engine log has no catalog or model name, so only the time range filters these panels. The panels depend on the text of an engine log message (rule `R050`), which can change between AtScale releases.
+The table "Aggregate suggestions for slow queries" combines both logs. It lists queries that ran at least `Min runtime (ms)`, joined on the query ID with the aggregate candidates the engine proposed for them. For a candidate below the threshold, it suggests a user-defined aggregate on that fact dataset with the attributes and measures of the query. Treat the suggestion as a starting point:
+
+- The attributes of the query must be coarser than the rejected grain, for example Fiscal Quarter instead of Day. Otherwise the aggregate has the same low compression.
+- Calculated measures cannot go into an aggregate. Replace them with the base metrics they use.
+- Queries that used an aggregate have no candidates and do not appear in the table.
+
+The engine log has no catalog or model name, so only the time range filters the candidate panels. The panels depend on the text of an engine log message (rule `R050`), which can change between AtScale releases.
 
 ## Configuration
 

@@ -22,8 +22,9 @@ Inputs (environment variables):
   HTTP_TIMEOUT_SECONDS (30), PORT (9101)
   QUERY_LOG              true (default) writes one JSON line per query to stdout
 Outputs: Prometheus text format on http://0.0.0.0:$PORT/metrics; with QUERY_LOG, one JSON
-  line per query on stdout (event "atscale_query": queryId, catalog, model, phase ms) for
-  a log store such as Loki. User names and query text are never written.
+  line per query on stdout (event "atscale_query": queryId, catalog, model, attribute and
+  measure names, phase ms) for a log store such as Loki. User names and query text are
+  never written.
 Run: python3 exporter.py
 
 Each query gets a miss_reason: optimized (aggregate or cache used), system (AtScale's own
@@ -243,12 +244,15 @@ def record(env, rec, created_ms=None):
 
 
 def query_log_line(labels, rec, phases, subquery_count):
-    """One JSON object per query for drill-down in a log store. No user names, no query text."""
+    """One JSON object per query for drill-down in a log store. Attribute and measure names
+    are model object names; user names and query text are never written."""
     line = dict(zip(QUERY_LABELS, labels))
     line.update({"event": "atscale_query", "query_id": rec.get("queryId"),
                  "start": iso(rec["startTime"] / 1000.0) if is_num(rec.get("startTime")) else None,
                  "duration_ms": round(rec["duration"], 1) if is_num(rec.get("duration")) else None,
-                 "subqueries": subquery_count})
+                 "subqueries": subquery_count,
+                 "attributes": ", ".join(sorted(rec.get("attributes") or [])),
+                 "measures": ", ".join(sorted(rec.get("measures") or []))})
     line.update({"%s_ms" % phase: round(seconds * 1000.0, 1) for phase, seconds in phases.items()})
     return line
 
