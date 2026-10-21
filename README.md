@@ -19,6 +19,7 @@ AtScale records four phases for every query: Inbound Query, Planning, Outbound a
 - [Import the Grafana dashboard](#import-the-grafana-dashboard)
 - [Read the dashboard](#read-the-dashboard)
 - [Drill down to single queries](#drill-down-to-single-queries)
+- [Find out why queries missed aggregates](#find-out-why-queries-missed-aggregates)
 - [Configuration](#configuration)
 - [Metrics](#metrics)
 - [Limits](#limits)
@@ -65,7 +66,7 @@ The phases come from AtScale. The exporter splits Outbound into two parts, becau
 The exporter calls the AtScale API with a bearer token. Use a dedicated service user, not a personal account.
 
 1. Create an AtScale user for the exporter, for example `svc-query-monitoring`.
-2. Give the user access to the query history of the catalogs you want to monitor.
+2. Give the user access to the query history and the aggregates of the catalogs you want to monitor.
 3. Log in to Design Center as that user.
 4. Open the account menu and create an API token.
 5. Store the token in your secret store. Do not commit it.
@@ -167,7 +168,8 @@ Prometheus holds the averages and percentiles, but not single queries. For singl
 
 ```json
 {"event": "atscale_query", "query_id": "21b348fc-...", "env": "prod", "catalog": "Sales", "model": "Orders",
- "query_type": "User", "status": "successful", "optimization": "none", "start": "2026-10-21T17:55:14.000Z",
+ "query_type": "User", "status": "successful", "optimization": "none", "miss_reason": "aggregate_created",
+ "start": "2026-10-21T17:55:14.000Z",
  "duration_ms": 2585.4, "inbound_ms": 11.4, "planning_ms": 43.0, "outbound_ms": 2530.7,
  "outbound_wait_ms": 9.7, "warehouse_ms": 2521.0, "result_processing_ms": 0.4, "subqueries": 1}
 ```
@@ -186,6 +188,24 @@ The table "Slowest queries" reads these lines from Loki. To use it:
 
 If you use another log store, for example Elasticsearch or Splunk, filter on `"event": "atscale_query"` there. The other dashboard panels do not need Loki.
 
+## Find out why queries missed aggregates
+
+When a query uses neither an aggregate nor the cache, the exporter gives it a reason in the label `miss_reason`. For queries that reached the warehouse, it reads the aggregates of the query's model from the AtScale aggregates API (`/v1/aggregates`), once per poll and only for models with such queries.
+
+| Reason | Meaning | What to do |
+|---|---|---|
+| `aggregate_created` | AtScale created an aggregate for the model while the query ran. This is the first run of a new combination of attributes and measures | Nothing. The next run of this combination can use the aggregate |
+| `no_aggregate_created` | The query read the raw tables and AtScale created no aggregate | Investigate. A common cause is an exact distinct count, which no system aggregate holds. Read the outbound SQL of the query on the Queries page in Design Center |
+| `no_warehouse` | AtScale answered without a warehouse query, for example a metadata query | Nothing |
+| `system` | AtScale's own queries, for example aggregate builds and statistics | Nothing |
+| `failed` | The query failed | Check the error on the Queries page |
+| `unclassified` | The exporter could not read the aggregates API | Check the exporter log and the token permissions |
+| `optimized` | The query used an aggregate or the cache | Nothing |
+
+The panel "Queries without aggregate or cache, by reason" and the table "Misses by catalog, model and reason" show the counts. The table "Slowest queries" shows the reason for each query.
+
+The classification is a rule, not a statement from AtScale. An aggregate counts as created by the query if it was created from 5 seconds before the query started until 10 seconds after it ended. An aggregate that a catalog deployment creates at the same moment also counts.
+
 ## Configuration
 
 Environment variables of the exporter. The Helm chart sets them from `values.yaml`.
@@ -198,7 +218,8 @@ Environment variables of the exporter. The Helm chart sets them from `values.yam
 | `CA_BUNDLE` | none | PEM file with extra CA certificates. Certificate checks stay on |
 | `POLL_SECONDS` | `60` | Poll interval |
 | `LOOKBACK_MINUTES` | `30` | How far back each poll reads. Queries that run longer are missed |
-| `PAGE_SIZE`, `MAX_PAGES` | `500`, `20` | Paging of the query history API |
+| `AGGREGATES_PATH` | `QUERY_PATH` with `query` replaced by `aggregates` | Path of the aggregates API, used for `miss_reason` |
+| `PAGE_SIZE`, `MAX_PAGES` | `100`, `20` | Paging of the AtScale APIs. The APIs return at most 101 rows per page, so values above 100 are reduced to 100 |
 | `HTTP_TIMEOUT_SECONDS` | `30` | Timeout per API call |
 | `PORT` | `9101` | Port of `/metrics` |
 | `QUERY_LOG` | `true` | Write one JSON line per query to standard output, for drill-down in a log store |
@@ -207,7 +228,7 @@ Environment variables of the exporter. The Helm chart sets them from `values.yam
 
 | Metric | Type | Labels |
 |---|---|---|
-| `atscale_query_duration_seconds` | Histogram | `env`, `catalog`, `model`, `status`, `query_type`, `optimization`, `dialect` |
+| `atscale_query_duration_seconds` | Histogram | `env`, `catalog`, `model`, `status`, `query_type`, `optimization`, `dialect`, `miss_reason` |
 | `atscale_query_phase_duration_seconds` | Histogram | Same, plus `phase` |
 | `atscale_query_subqueries` | Histogram | Same as the first metric |
 | `atscale_query_exporter_up` | Gauge | `env`. 1 when the last poll succeeded |

@@ -16,7 +16,9 @@ Inputs (environment variables):
                          call the sml-api service directly inside Kubernetes)
   CA_BUNDLE              optional PEM file with extra CA certificates (self-signed or
                          private CA); certificate verification is always on
-  POLL_SECONDS (60), LOOKBACK_MINUTES (30), PAGE_SIZE (500), MAX_PAGES (20),
+  AGGREGATES_PATH        aggregates path (default: QUERY_PATH with "query" replaced by
+                         "aggregates", i.e. /v1/aggregates or /v1/public/aggregates)
+  POLL_SECONDS (60), LOOKBACK_MINUTES (30), PAGE_SIZE (100, the API maximum), MAX_PAGES (20),
   HTTP_TIMEOUT_SECONDS (30), PORT (9101)
   QUERY_LOG              true (default) writes one JSON line per query to stdout
 Outputs: Prometheus text format on http://0.0.0.0:$PORT/metrics; with QUERY_LOG, one JSON
@@ -24,10 +26,18 @@ Outputs: Prometheus text format on http://0.0.0.0:$PORT/metrics; with QUERY_LOG,
   a log store such as Loki. User names and query text are never written.
 Run: python3 exporter.py
 
+Each query gets a miss_reason: optimized (aggregate or cache used), system (AtScale's own
+queries, for example aggregate builds and statistics), failed, no_warehouse
+(answered without a warehouse query), aggregate_created (AtScale created an aggregate for
+the model while the query ran, so the next run of this footprint can use it),
+no_aggregate_created (investigate: for example an exact distinct count), or unclassified
+(the aggregates API could not be read).
+
 Each query is counted once (deduplicated on queryId). Queries already in the history
 when the exporter starts are not counted, so a restart does not count them twice.
 Run exactly one replica: two replicas would count every query twice.
 """
+import datetime
 import json
 import logging
 import os
@@ -53,7 +63,11 @@ PHASE_NAMES = {
     "Outbound Queries": "outbound",
     "Result Processing": "result_processing",
 }
-QUERY_LABELS = ("env", "catalog", "model", "status", "query_type", "optimization", "dialect")
+QUERY_LABELS = ("env", "catalog", "model", "status", "query_type", "optimization", "dialect", "miss_reason")
+MAX_API_PAGE_SIZE = 100       # the AtScale API returns at most 101 rows and no next page above this
+# An aggregate created from 5 s before the query start to 10 s after its end
+# counts as created for this query.
+AGG_WINDOW_BEFORE_MS, AGG_WINDOW_AFTER_MS = 5000, 10000
 
 
 class Histogram:
@@ -135,17 +149,48 @@ def is_num(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def query_labels(env, rec):
+def optimization_of(rec):
     optimization = rec.get("optimization") or []
     if isinstance(optimization, str):
         optimization = [optimization]
+    return "+".join(sorted(optimization)) or "none"
+
+
+def classify(rec, subquery_count, created_ms):
+    """Why a query used no aggregate or cache. created_ms: creation times (epoch ms) of the
+    aggregates of the query's model, or None if they could not be read."""
+    if optimization_of(rec) != "none":
+        return "optimized"
+    if rec.get("queryType") == "System":
+        return "system"
+    if rec.get("status") != "successful":
+        return "failed"
+    if subquery_count == 0:
+        return "no_warehouse"
+    if created_ms is None or not is_num(rec.get("startTime")):
+        return "unclassified"
+    start = rec["startTime"]
+    end = start + (rec["duration"] if is_num(rec.get("duration")) else 0)
+    if any(start - AGG_WINDOW_BEFORE_MS <= t <= end + AGG_WINDOW_AFTER_MS for t in created_ms):
+        return "aggregate_created"
+    return "no_aggregate_created"
+
+
+def needs_aggregate_check(rec):
+    """True for a successful query that reached the warehouse without aggregate or cache."""
+    return (optimization_of(rec) == "none" and rec.get("status") == "successful"
+            and rec.get("queryType") != "System" and phase_durations(rec)[1] > 0)
+
+
+def query_labels(env, rec, miss_reason="unclassified"):
     return (env,
             rec.get("catalogName") or "unknown",
             rec.get("modelName") or "unknown",
             rec.get("status") or "unknown",
             rec.get("queryType") or "unknown",
-            "+".join(sorted(optimization)) or "none",
-            rec.get("dialect") or "unknown")
+            optimization_of(rec),
+            rec.get("dialect") or "unknown",
+            miss_reason)
 
 
 def interval_union_ms(subqueries):
@@ -183,12 +228,12 @@ def phase_durations(rec):
     return out, subquery_count
 
 
-def record(env, rec):
+def record(env, rec, created_ms=None):
     """Observe one query record from the query history API."""
-    labels = query_labels(env, rec)
+    phases, subquery_count = phase_durations(rec)
+    labels = query_labels(env, rec, classify(rec, subquery_count, created_ms))
     if is_num(rec.get("duration")):
         QUERY_HIST.observe(labels, rec["duration"] / 1000.0)
-    phases, subquery_count = phase_durations(rec)
     for phase, seconds in phases.items():
         PHASE_HIST.observe(labels + (phase,), seconds)
     SUBQ_HIST.observe(labels, subquery_count)
@@ -219,20 +264,37 @@ class InstancePoller:
 
     def fetch(self):
         now = time.time()
-        params = {"size": self.cfg["page_size"], "showCanaries": "false", "sort": "-startTime",
+        params = {"showCanaries": "false", "sort": "-startTime",
                   "startDate": iso(now - self.cfg["lookback_s"]), "endDate": iso(now + 60)}
-        records = []
+        return self.get_paged(self.cfg["query_path"], params, "results")
+
+    def get_paged(self, path, params, key):
+        """Read all pages of a list endpoint ({key: [...], hasNextPage} or {key: [...], total})."""
+        items = []
         for page in range(1, self.cfg["max_pages"] + 1):
-            params["page"] = page
-            doc = self.get_json(self.cfg["query_path"] + "?" + urllib.parse.urlencode(params))
-            batch = doc.get("results") if isinstance(doc, dict) else None
+            query = dict(params, page=page, size=self.cfg["page_size"])
+            doc = self.get_json(path + "?" + urllib.parse.urlencode(query))
+            batch = doc.get(key) if isinstance(doc, dict) else None
             if batch is None:
-                raise ValueError("response has no 'results' list; check QUERY_PATH and the AtScale version")
-            records.extend(batch)
-            if not doc.get("hasNextPage") or not batch:
-                return records
-        LOG.warning("%s: stopped at %d pages; raise MAX_PAGES", self.env, self.cfg["max_pages"])
-        return records
+                raise ValueError("%s: response has no '%s' list; check the path and the AtScale version" % (path, key))
+            items.extend(batch)
+            more = doc.get("hasNextPage") if "hasNextPage" in doc else len(items) < int(doc.get("total") or 0)
+            if not more or not batch:
+                return items
+        LOG.warning("%s: %s stopped at %d pages; raise MAX_PAGES", self.env, path, self.cfg["max_pages"])
+        return items
+
+    def aggregate_creation_times(self, model_ids):
+        """{modelId: [creation epoch ms]} of the models' aggregates, or None if unreadable."""
+        try:
+            out = {}
+            for model_id in model_ids:
+                aggs = self.get_paged(self.cfg["aggregates_path"], {"modelId": model_id}, "data")
+                out[model_id] = [parse_ms((a.get("stats") or {}).get("createdAt")) for a in aggs]
+            return out
+        except (OSError, ValueError) as exc:
+            LOG.warning("%s: aggregates not readable, misses stay unclassified: %s", self.env, exc)
+            return None
 
     def get_json(self, path):
         req = urllib.request.Request(self.base_url + path, headers={
@@ -242,21 +304,31 @@ class InstancePoller:
 
     def poll(self):
         now = time.time()
-        new = without_events = 0
+        fresh = []
         for rec in self.fetch():
             qid = rec.get("queryId")
             if not qid or qid in self.seen:
                 continue
             self.seen[qid] = now + 2 * self.cfg["lookback_s"]
-            if self.warmed_up:
-                new += 1
-                without_events += 0 if record(self.env, rec) else 1
+            fresh.append(rec)
         self.seen = {q: exp for q, exp in self.seen.items() if exp > now}
+        new = len(fresh) if self.warmed_up else 0
+        without_events = self.record_all(fresh) if self.warmed_up else 0
         if not self.warmed_up:
             LOG.info("%s: warm-up, %d existing queries skipped", self.env, len(self.seen))
         self.warmed_up = True
         self.check_fields(new, without_events)
         return new
+
+    def record_all(self, records):
+        """Record new queries; returns how many had no phase events."""
+        models = {r.get("modelId") for r in records if needs_aggregate_check(r) and r.get("modelId")}
+        created = self.aggregate_creation_times(sorted(models)) if models else {}
+        without_events = 0
+        for rec in records:
+            times = None if created is None else created.get(rec.get("modelId"), [])
+            without_events += 0 if record(self.env, rec, times) else 1
+        return without_events
 
     def check_fields(self, new, without_events):
         """Warn once if this AtScale version returns queries without phase events."""
@@ -268,6 +340,13 @@ class InstancePoller:
 
 def iso(epoch):
     return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(epoch))
+
+
+def parse_ms(text):
+    """ISO 8601 timestamp (as the AtScale API returns it) to epoch ms; 0 if missing."""
+    if not text:
+        return 0
+    return datetime.datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp() * 1000.0
 
 
 def poll_forever(pollers, poll_s):
@@ -308,9 +387,15 @@ def token_var(name):
 
 def load_config():
     ca_bundle = os.environ.get("CA_BUNDLE")
-    return {"query_path": os.environ.get("QUERY_PATH", "/v1/query"),
+    query_path = os.environ.get("QUERY_PATH", "/v1/query")
+    page_size = int(os.environ.get("PAGE_SIZE", str(MAX_API_PAGE_SIZE)))
+    if page_size > MAX_API_PAGE_SIZE:
+        LOG.warning("PAGE_SIZE %d is above the API maximum; using %d", page_size, MAX_API_PAGE_SIZE)
+        page_size = MAX_API_PAGE_SIZE
+    return {"query_path": query_path,
+            "aggregates_path": os.environ.get("AGGREGATES_PATH", re.sub(r"query$", "aggregates", query_path)),
             "lookback_s": int(os.environ.get("LOOKBACK_MINUTES", "30")) * 60,
-            "page_size": int(os.environ.get("PAGE_SIZE", "500")),
+            "page_size": page_size,
             "max_pages": int(os.environ.get("MAX_PAGES", "20")),
             "timeout_s": int(os.environ.get("HTTP_TIMEOUT_SECONDS", "30")),
             "ssl": ssl.create_default_context(cafile=ca_bundle or None)}

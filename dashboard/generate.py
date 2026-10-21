@@ -73,8 +73,8 @@ panels += [
          desc="Median, estimated from histogram buckets."),
     stat("p95", 'histogram_quantile(0.95, sum by (le) (increase(%s_bucket{%s}[$__range])))' % (Q, F), "s", 12, y,
          desc="95th percentile, estimated from histogram buckets."),
-    stat("Aggs or cache", 'sum(increase(%s_count{%s,optimization!="none"}[$__range])) / sum(increase(%s_count{%s}[$__range]))' % (Q, F, Q, F),
-         "percentunit", 16, y, desc="Share of queries AtScale answered from an aggregate table or the query cache."),
+    stat("Aggs or cache", 'sum(increase(%s_count{%s,optimization!="none"}[$__range])) / sum(increase(%s_count{%s,miss_reason!="no_warehouse"}[$__range]))' % (Q, F, Q, F),
+         "percentunit", 16, y, desc="Share of queries AtScale answered from an aggregate table or the query cache. Queries that never reached the warehouse are left out."),
     stat("Exporter up", 'min(atscale_query_exporter_up{env=~"$env"})', "short", 20, y,
          desc="1 = the last poll of every selected AtScale instance succeeded.",
          thresholds={"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "green", "value": 1}]}),
@@ -188,8 +188,60 @@ panels.append({
     "fieldConfig": {"defaults": {}, "overrides": []}})
 y += 9
 
+REASON_NAMES = {"aggregate_created": "Aggregate created by this query", "no_aggregate_created": "No aggregate created: investigate",
+                "no_warehouse": "No warehouse query", "system": "AtScale system query", "failed": "Failed", "unclassified": "Unclassified"}
+REASON_COLORS = {"aggregate_created": "#73BF69", "no_aggregate_created": "#F2495C", "no_warehouse": "#8AB8FF",
+                 "system": "#CA95E5", "failed": "#FF9830", "unclassified": "#B7B7B7"}
+REASON_HELP = ("Why queries ran without an aggregate or the cache. Aggregate created by this query: the first run of a new combination "
+               "of attributes and measures; AtScale created an aggregate while it ran, so the next run can use it. "
+               "No aggregate created: investigate, for example an exact distinct count that no aggregate holds, or a catalog "
+               "deployed while the query ran. No warehouse query: answered without a warehouse query (metadata). "
+               "AtScale system query: AtScale's own queries, for example aggregate builds and statistics. "
+               "Unclassified: the exporter could not read the aggregates API.")
+
+def reason_legend(expr):
+    for k, v in REASON_NAMES.items():
+        expr = 'label_replace(%s, "miss_reason", "%s", "miss_reason", "%s")' % (expr, v, k)
+    return expr
+
+def reason_overrides():
+    return [{"matcher": {"id": "byName", "options": REASON_NAMES[k]},
+             "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": c}}]} for k, c in REASON_COLORS.items()]
+
+MISS = 'miss_reason=~".+",miss_reason!="optimized"'
+panels.append(row("Why queries missed aggregates and cache", y)); y += 1
+panels.append({
+    "type": "bargauge", "title": "Queries without aggregate or cache, by reason", "id": nid(), "datasource": DS,
+    "description": REASON_HELP,
+    "gridPos": {"h": 9, "w": 9, "x": 0, "y": y},
+    "targets": [tgt(reason_legend('sum by (miss_reason) (increase(%s_count{%s,%s}[$__range]))' % (Q, F, MISS)), "{{miss_reason}}", instant=True)],
+    "options": {"orientation": "horizontal", "displayMode": "basic", "showUnfilled": True, "namePlacement": "left", "valueMode": "color",
+                "reduceOptions": {"calcs": ["lastNotNull"], "values": False, "fields": ""}},
+    "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "min": 0, "color": {"mode": "fixed", "fixedColor": "#B7B7B7"}},
+                    "overrides": reason_overrides()}})
+cmr = "catalog, model, miss_reason"
+panels.append({
+    "type": "table", "title": "Misses by catalog, model and reason", "id": nid(), "datasource": DS,
+    "description": "Start with the rows marked No aggregate created: investigate. " + REASON_HELP,
+    "gridPos": {"h": 9, "w": 15, "x": 9, "y": y},
+    "targets": [tgt(reason_legend('sum by (%s) (increase(%s_count{%s,%s}[$__range]))' % (cmr, Q, F, MISS)), ref="A", instant=True, fmt="table"),
+                tgt(reason_legend('sum by (%s) (increase(%s_sum{%s,%s}[$__range])) / sum by (%s) (increase(%s_count{%s,%s}[$__range]))' % (cmr, Q, F, MISS, cmr, Q, F, MISS)),
+                    ref="B", instant=True, fmt="table")],
+    "transformations": [
+        {"id": "merge", "options": {}},
+        {"id": "organize", "options": {"excludeByName": {"Time": True},
+                                       "renameByName": {"catalog": "Catalog", "model": "Model", "miss_reason": "Reason", "Value #A": "Queries", "Value #B": "Avg total"},
+                                       "indexByName": {"catalog": 0, "model": 1, "miss_reason": 2, "Value #A": 3, "Value #B": 4}}},
+        {"id": "filterByValue", "options": {"type": "exclude", "match": "any", "filters": [{"fieldName": "Queries", "config": {"id": "lowerOrEqual", "options": {"value": 0}}}]}},
+        {"id": "sortBy", "options": {"sort": [{"field": "Queries", "desc": True}]}}],
+    "fieldConfig": {"defaults": {"custom": {"align": "auto"}},
+                    "overrides": [{"matcher": {"id": "byName", "options": "Queries"}, "properties": [{"id": "unit", "value": "short"}, {"id": "decimals", "value": 0}]},
+                                  {"matcher": {"id": "byName", "options": "Avg total"}, "properties": [{"id": "unit", "value": "s"}, {"id": "decimals", "value": 3}]}]},
+    "options": {"showHeader": True, "cellHeight": "sm"}})
+y += 9
+
 LOKI = {"type": "loki", "uid": "${loki}"}
-LOG_FIELDS = ["start", "query_id", "catalog", "model", "query_type", "optimization", "status", "duration_ms",
+LOG_FIELDS = ["start", "query_id", "catalog", "model", "query_type", "optimization", "miss_reason", "status", "duration_ms",
               "inbound_ms", "planning_ms", "outbound_wait_ms", "warehouse_ms", "result_processing_ms", "subqueries"]
 panels.append(row("Single queries (needs the exporter's query log in Loki)", y)); y += 1
 panels.append({
@@ -203,7 +255,7 @@ panels.append({
         {"id": "filterFieldsByName", "options": {"include": {"names": LOG_FIELDS}}},
         {"id": "organize", "options": {"indexByName": {n: i for i, n in enumerate(LOG_FIELDS)},
                                        "renameByName": {"start": "Start (UTC)", "query_id": "Query ID", "catalog": "Catalog", "model": "Model",
-                                                        "query_type": "Type", "optimization": "Optimization", "status": "Status",
+                                                        "query_type": "Type", "optimization": "Optimization", "miss_reason": "Miss reason", "status": "Status",
                                                         "duration_ms": "Total", "inbound_ms": "Inbound Query", "planning_ms": "Planning",
                                                         "outbound_wait_ms": "Outbound wait", "warehouse_ms": "Outbound warehouse",
                                                         "result_processing_ms": "Result Processing", "subqueries": "Subqueries"}}},

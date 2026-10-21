@@ -441,7 +441,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Share of queries AtScale answered from an aggregate table or the query cache.",
+      "description": "Share of queries AtScale answered from an aggregate table or the query cache. Queries that never reached the warehouse are left out.",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -454,7 +454,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",optimization!=\"none\"}[$__range])) / sum(increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range]))",
+          "expr": "sum(increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",optimization!=\"none\"}[$__range])) / sum(increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason!=\"no_warehouse\"}[$__range]))",
           "refId": "A",
           "legendFormat": "",
           "format": "time_series",
@@ -1488,7 +1488,7 @@
     },
     {
       "type": "row",
-      "title": "Single queries (needs the exporter's query log in Loki)",
+      "title": "Why queries missed aggregates and cache",
       "id": 17,
       "collapsed": false,
       "gridPos": {
@@ -1500,9 +1500,313 @@
       "panels": []
     },
     {
+      "type": "bargauge",
+      "title": "Queries without aggregate or cache, by reason",
+      "id": 18,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Why queries ran without an aggregate or the cache. Aggregate created by this query: the first run of a new combination of attributes and measures; AtScale created an aggregate while it ran, so the next run can use it. No aggregate created: investigate, for example an exact distinct count that no aggregate holds, or a catalog deployed while the query ran. No warehouse query: answered without a warehouse query (metadata). AtScale system query: AtScale's own queries, for example aggregate builds and statistics. Unclassified: the exporter could not read the aggregates API.",
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (miss_reason) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason=~\".+\",miss_reason!=\"optimized\"}[$__range])), \"miss_reason\", \"Aggregate created by this query\", \"miss_reason\", \"aggregate_created\"), \"miss_reason\", \"No aggregate created: investigate\", \"miss_reason\", \"no_aggregate_created\"), \"miss_reason\", \"No warehouse query\", \"miss_reason\", \"no_warehouse\"), \"miss_reason\", \"AtScale system query\", \"miss_reason\", \"system\"), \"miss_reason\", \"Failed\", \"miss_reason\", \"failed\"), \"miss_reason\", \"Unclassified\", \"miss_reason\", \"unclassified\")",
+          "refId": "A",
+          "legendFormat": "{{miss_reason}}",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "valueMode": "color",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B7B7B7"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Aggregate created by this query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "No aggregate created: investigate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "No warehouse query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AtScale system query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CA95E5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unclassified"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B7B7B7"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Misses by catalog, model and reason",
+      "id": 19,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Start with the rows marked No aggregate created: investigate. Why queries ran without an aggregate or the cache. Aggregate created by this query: the first run of a new combination of attributes and measures; AtScale created an aggregate while it ran, so the next run can use it. No aggregate created: investigate, for example an exact distinct count that no aggregate holds, or a catalog deployed while the query ran. No warehouse query: answered without a warehouse query (metadata). AtScale system query: AtScale's own queries, for example aggregate builds and statistics. Unclassified: the exporter could not read the aggregates API.",
+      "gridPos": {
+        "h": 9,
+        "w": 15,
+        "x": 9,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (catalog, model, miss_reason) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason=~\".+\",miss_reason!=\"optimized\"}[$__range])), \"miss_reason\", \"Aggregate created by this query\", \"miss_reason\", \"aggregate_created\"), \"miss_reason\", \"No aggregate created: investigate\", \"miss_reason\", \"no_aggregate_created\"), \"miss_reason\", \"No warehouse query\", \"miss_reason\", \"no_warehouse\"), \"miss_reason\", \"AtScale system query\", \"miss_reason\", \"system\"), \"miss_reason\", \"Failed\", \"miss_reason\", \"failed\"), \"miss_reason\", \"Unclassified\", \"miss_reason\", \"unclassified\")",
+          "refId": "A",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (catalog, model, miss_reason) (increase(atscale_query_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason=~\".+\",miss_reason!=\"optimized\"}[$__range])) / sum by (catalog, model, miss_reason) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason=~\".+\",miss_reason!=\"optimized\"}[$__range])), \"miss_reason\", \"Aggregate created by this query\", \"miss_reason\", \"aggregate_created\"), \"miss_reason\", \"No aggregate created: investigate\", \"miss_reason\", \"no_aggregate_created\"), \"miss_reason\", \"No warehouse query\", \"miss_reason\", \"no_warehouse\"), \"miss_reason\", \"AtScale system query\", \"miss_reason\", \"system\"), \"miss_reason\", \"Failed\", \"miss_reason\", \"failed\"), \"miss_reason\", \"Unclassified\", \"miss_reason\", \"unclassified\")",
+          "refId": "B",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "catalog": "Catalog",
+              "model": "Model",
+              "miss_reason": "Reason",
+              "Value #A": "Queries",
+              "Value #B": "Avg total"
+            },
+            "indexByName": {
+              "catalog": 0,
+              "model": 1,
+              "miss_reason": 2,
+              "Value #A": 3,
+              "Value #B": 4
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Queries",
+                "config": {
+                  "id": "lowerOrEqual",
+                  "options": {
+                    "value": 0
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Queries",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Queries"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg total"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Single queries (needs the exporter's query log in Loki)",
+      "id": 20,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 61
+      },
+      "panels": []
+    },
+    {
       "type": "table",
       "title": "Slowest queries",
-      "id": 18,
+      "id": 21,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -1512,7 +1816,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 62
       },
       "targets": [
         {
@@ -1547,6 +1851,7 @@
                 "model",
                 "query_type",
                 "optimization",
+                "miss_reason",
                 "status",
                 "duration_ms",
                 "inbound_ms",
@@ -1569,14 +1874,15 @@
               "model": 3,
               "query_type": 4,
               "optimization": 5,
-              "status": 6,
-              "duration_ms": 7,
-              "inbound_ms": 8,
-              "planning_ms": 9,
-              "outbound_wait_ms": 10,
-              "warehouse_ms": 11,
-              "result_processing_ms": 12,
-              "subqueries": 13
+              "miss_reason": 6,
+              "status": 7,
+              "duration_ms": 8,
+              "inbound_ms": 9,
+              "planning_ms": 10,
+              "outbound_wait_ms": 11,
+              "warehouse_ms": 12,
+              "result_processing_ms": 13,
+              "subqueries": 14
             },
             "renameByName": {
               "start": "Start (UTC)",
@@ -1585,6 +1891,7 @@
               "model": "Model",
               "query_type": "Type",
               "optimization": "Optimization",
+              "miss_reason": "Miss reason",
               "status": "Status",
               "duration_ms": "Total",
               "inbound_ms": "Inbound Query",
@@ -1680,20 +1987,20 @@
     {
       "type": "row",
       "title": "Engine JDBC pools (engine OpenTelemetry metrics)",
-      "id": 19,
+      "id": 22,
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 64
+        "y": 74
       },
       "panels": []
     },
     {
       "type": "timeseries",
       "title": "Average JDBC connection borrow time by pool",
-      "id": 20,
+      "id": 23,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1703,7 +2010,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 65
+        "y": 75
       },
       "targets": [
         {
@@ -1739,7 +2046,7 @@
     {
       "type": "timeseries",
       "title": "JDBC borrow timeouts and statements in flight",
-      "id": 21,
+      "id": 24,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1749,7 +2056,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 65
+        "y": 75
       },
       "targets": [
         {

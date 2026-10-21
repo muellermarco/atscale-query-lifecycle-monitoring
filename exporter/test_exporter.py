@@ -64,10 +64,50 @@ class PhaseTests(unittest.TestCase):
         self.assertEqual(x.query_labels("prod", rec)[5], "AGGS+CACHE")
 
 
+def miss(qid="m1", start=1000, duration=2000, subqueries=True, status="successful"):
+    rec = sample_record(qid, subqueries=None if subqueries else [])
+    rec.update({"optimization": [], "status": status, "startTime": start, "duration": duration,
+                "modelId": "model-1"})
+    return rec
+
+
+class ClassifyTests(unittest.TestCase):
+    def test_optimized(self):
+        self.assertEqual(x.classify(sample_record(), 1, []), "optimized")
+
+    def test_system_query(self):
+        rec = miss()
+        rec["queryType"] = "System"
+        self.assertEqual(x.classify(rec, 1, []), "system")
+        self.assertFalse(x.needs_aggregate_check(rec))
+
+    def test_failed(self):
+        self.assertEqual(x.classify(miss(status="failed"), 1, []), "failed")
+
+    def test_no_warehouse(self):
+        self.assertEqual(x.classify(miss(), 0, []), "no_warehouse")
+
+    def test_aggregate_created_during_query(self):
+        self.assertEqual(x.classify(miss(), 1, [2500.0]), "aggregate_created")
+
+    def test_aggregate_created_shortly_after_query(self):
+        self.assertEqual(x.classify(miss(), 1, [3000.0 + 9000]), "aggregate_created")
+
+    def test_old_aggregate_does_not_count(self):
+        self.assertEqual(x.classify(miss(start=100000), 1, [1000.0]), "no_aggregate_created")
+
+    def test_unreadable_aggregates(self):
+        self.assertEqual(x.classify(miss(), 1, None), "unclassified")
+
+    def test_parse_ms(self):
+        self.assertEqual(x.parse_ms("1970-01-01T00:00:01.500000Z"), 1500.0)
+        self.assertEqual(x.parse_ms(None), 0)
+
+
 class PollerTests(unittest.TestCase):
     def make_poller(self, pages):
-        cfg = {"query_path": "/v1/query", "lookback_s": 1800, "page_size": 500, "max_pages": 5,
-               "timeout_s": 5, "ssl": None}
+        cfg = {"query_path": "/v1/query", "aggregates_path": "/v1/aggregates", "lookback_s": 1800,
+               "page_size": 100, "max_pages": 5, "timeout_s": 5, "ssl": None}
         poller = x.InstancePoller("test", "https://atscale.example.com", "token", cfg)
         poller.get_json = mock.Mock(side_effect=pages)
         return poller
@@ -85,6 +125,29 @@ class PollerTests(unittest.TestCase):
         p2 = {"results": [sample_record("b")], "hasNextPage": False}
         self.assertEqual(len(self.make_poller([p1, p2]).fetch()), 2)
 
+    def test_paging_by_total(self):
+        p1 = {"data": [{"stats": {"createdAt": "1970-01-01T00:00:02Z"}}], "total": 2}
+        p2 = {"data": [{"stats": {"createdAt": "1970-01-01T00:00:03Z"}}], "total": 2}
+        poller = self.make_poller([p1, p2])
+        self.assertEqual(poller.aggregate_creation_times(["model-1"]), {"model-1": [2000.0, 3000.0]})
+
+    def test_miss_is_classified_from_aggregates(self):
+        history = {"results": [miss("new")], "hasNextPage": False}
+        aggs = {"data": [{"stats": {"createdAt": "1970-01-01T00:00:01.200Z"}}], "total": 1}
+        poller = self.make_poller([{"results": [], "hasNextPage": False}, history, aggs])
+        poller.poll()
+        with mock.patch.object(x, "record", wraps=x.record) as rec:
+            poller.seen.clear()
+            poller.get_json.side_effect = [history, aggs]
+            poller.poll()
+        self.assertEqual(rec.call_args[0][2], [1200.0])
+
+    def test_unreadable_aggregates_do_not_fail_the_poll(self):
+        history = {"results": [miss("new")], "hasNextPage": False}
+        poller = self.make_poller([{"results": [], "hasNextPage": False}, history, OSError("503")])
+        poller.poll()
+        self.assertEqual(poller.poll(), 1)
+
     def test_unexpected_response_raises(self):
         with self.assertRaises(ValueError):
             self.make_poller([{"message": "not found"}]).fetch()
@@ -98,6 +161,14 @@ class ConfigTests(unittest.TestCase):
         env = {"ATSCALE_INSTANCES": "prod=https://atscale.example.com"}
         with mock.patch.dict(os.environ, env, clear=True), self.assertRaises(SystemExit):
             x.load_pollers({})
+
+    def test_page_size_capped_at_api_maximum(self):
+        with mock.patch.dict(os.environ, {"PAGE_SIZE": "500"}, clear=True):
+            self.assertEqual(x.load_config()["page_size"], 100)
+
+    def test_aggregates_path_follows_query_path(self):
+        with mock.patch.dict(os.environ, {"QUERY_PATH": "/v1/public/query"}, clear=True):
+            self.assertEqual(x.load_config()["aggregates_path"], "/v1/public/aggregates")
 
     def test_bad_url_fails_fast(self):
         env = {"ATSCALE_INSTANCES": "prod=atscale.example.com", "ATSCALE_TOKEN_PROD": "t"}
