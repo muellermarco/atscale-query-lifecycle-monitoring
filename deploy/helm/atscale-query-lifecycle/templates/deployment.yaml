@@ -1,0 +1,70 @@
+{{- if not .Values.image.repository }}{{ fail "set image.repository" }}{{ end }}
+{{- if not .Values.existingSecret }}{{ fail "set existingSecret" }}{{ end }}
+{{- if not .Values.instances }}{{ fail "set at least one entry in instances" }}{{ end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aql.fullname" . }}
+  labels: {{- include "aql.labels" . | nindent 4 }}
+spec:
+  replicas: 1                  # never more: two replicas count every query twice
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{- include "aql.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "aql.selector" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: exporter
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - {name: ATSCALE_INSTANCES, value: {{ include "aql.instances" . | quote }}}
+            - {name: QUERY_PATH, value: {{ .Values.queryPath | quote }}}
+            - {name: POLL_SECONDS, value: {{ .Values.pollSeconds | quote }}}
+            - {name: LOOKBACK_MINUTES, value: {{ .Values.lookbackMinutes | quote }}}
+            {{- if .Values.caBundle.configMap }}
+            - {name: CA_BUNDLE, value: /etc/atscale-ca/{{ .Values.caBundle.key }}}
+            {{- end }}
+          envFrom:
+            - secretRef: {name: {{ .Values.existingSecret | quote }}}
+          ports:
+            - {name: metrics, containerPort: 9101}
+          readinessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            periodSeconds: 30
+          livenessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            periodSeconds: 60
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          {{- if .Values.caBundle.configMap }}
+          volumeMounts:
+            - {name: ca, mountPath: /etc/atscale-ca, readOnly: true}
+          {{- end }}
+      {{- if .Values.caBundle.configMap }}
+      volumes:
+        - name: ca
+          configMap: {name: {{ .Values.caBundle.configMap | quote }}}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

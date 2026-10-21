@@ -1,0 +1,7 @@
+AtScale query lifecycle exporter (sample code, provided as is, not supported by AtScale).
+
+Check that it polls:
+  kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "aql.fullname" . }}
+Expected: "<instance>: warm-up, N existing queries skipped", then "<instance>: N new queries" every {{ .Values.pollSeconds }} s.
+
+Metrics: http://{{ include "aql.fullname" . }}.{{ .Release.Namespace }}.svc:9101/metrics

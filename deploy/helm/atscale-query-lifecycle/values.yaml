@@ -1,0 +1,50 @@
+# Sample code, provided as is under the MIT License. Not an AtScale product. See DISCLAIMER.md.
+
+image:
+  # Build the image from exporter/Dockerfile and push it to your own registry.
+  repository: ""            # required, e.g. registry.example.com/atscale-query-exporter
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# AtScale instances to poll. name becomes the "env" label in Prometheus and Grafana.
+instances: []
+#  - name: prod
+#    url: https://atscale.example.com
+
+# Secret with one key per instance: ATSCALE_TOKEN_<NAME> (upper case, non-alphanumeric -> "_").
+# Create it yourself; this chart never stores tokens.
+existingSecret: ""          # required
+
+# /v1/query through the AtScale ingress gateway (public URL).
+# /v1/public/query when url points at the sml-api service inside the cluster.
+queryPath: /v1/query
+
+# Optional extra CA certificates (PEM) for a private or self-signed AtScale certificate.
+caBundle:
+  configMap: ""
+  key: ca.crt
+
+pollSeconds: 60
+lookbackMinutes: 30         # queries running longer than this are missed
+
+resources:
+  requests: {cpu: 10m, memory: 48Mi}
+  limits: {cpu: 200m, memory: 128Mi}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Prometheus Operator (kube-prometheus-stack). Set labels to match your Prometheus
+# serviceMonitorSelector, e.g. {release: kube-prometheus-stack}.
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  labels: {}
+
+# Grafana sidecar dashboard ConfigMap. Match your sidecar label, often grafana_dashboard: "1".
+dashboard:
+  enabled: false
+  labels:
+    grafana_dashboard: "1"
+  annotations: {}

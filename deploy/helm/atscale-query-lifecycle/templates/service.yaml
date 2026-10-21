@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aql.fullname" . }}
+  labels: {{- include "aql.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "aql.selector" . | nindent 4 }}
+  ports:
+    - {name: metrics, port: 9101, targetPort: metrics}
