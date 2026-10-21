@@ -28,6 +28,25 @@
         "hide": 0
       },
       {
+        "name": "loki",
+        "label": "Loki",
+        "type": "datasource",
+        "query": "loki",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "log_selector",
+        "label": "Log selector",
+        "type": "textbox",
+        "query": "{container=\"exporter\"}",
+        "current": {
+          "text": "{container=\"exporter\"}",
+          "value": "{container=\"exporter\"}"
+        },
+        "hide": 0
+      },
+      {
         "name": "env",
         "label": "Instance",
         "type": "query",
@@ -1469,7 +1488,7 @@
     },
     {
       "type": "row",
-      "title": "Engine JDBC pools (engine OpenTelemetry metrics)",
+      "title": "Single queries (needs the exporter's query log in Loki)",
       "id": 17,
       "collapsed": false,
       "gridPos": {
@@ -1481,9 +1500,200 @@
       "panels": []
     },
     {
+      "type": "table",
+      "title": "Slowest queries",
+      "id": 18,
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "description": "One row per query from the exporter's JSON query log, slowest first. Copy the query_id and search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 1000,
+          "expr": "$log_selector |= \"atscale_query\" | json | event=\"atscale_query\" | env=~\"$env\" | query_type=~\"$query_type\" | catalog=~\"$catalog\" | model=~\"$model\" | optimization=~\"$optimization\" | status=~\"$status\""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "Line",
+            "format": "json",
+            "replace": true,
+            "keepTime": false
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "start",
+                "query_id",
+                "catalog",
+                "model",
+                "query_type",
+                "optimization",
+                "status",
+                "duration_ms",
+                "inbound_ms",
+                "planning_ms",
+                "outbound_wait_ms",
+                "warehouse_ms",
+                "result_processing_ms",
+                "subqueries"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "start": 0,
+              "query_id": 1,
+              "catalog": 2,
+              "model": 3,
+              "query_type": 4,
+              "optimization": 5,
+              "status": 6,
+              "duration_ms": 7,
+              "inbound_ms": 8,
+              "planning_ms": 9,
+              "outbound_wait_ms": 10,
+              "warehouse_ms": 11,
+              "result_processing_ms": 12,
+              "subqueries": 13
+            },
+            "renameByName": {
+              "start": "Start (UTC)",
+              "query_id": "Query ID",
+              "catalog": "Catalog",
+              "model": "Model",
+              "query_type": "Type",
+              "optimization": "Optimization",
+              "status": "Status",
+              "duration_ms": "Total",
+              "inbound_ms": "Inbound Query",
+              "planning_ms": "Planning",
+              "outbound_wait_ms": "Outbound wait",
+              "warehouse_ms": "Outbound warehouse",
+              "result_processing_ms": "Result Processing",
+              "subqueries": "Subqueries"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Total",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1,
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Subqueries"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Query ID"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 300
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Engine JDBC pools (engine OpenTelemetry metrics)",
+      "id": 19,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "panels": []
+    },
+    {
       "type": "timeseries",
       "title": "Average JDBC connection borrow time by pool",
-      "id": 18,
+      "id": 20,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1493,7 +1703,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 65
       },
       "targets": [
         {
@@ -1529,7 +1739,7 @@
     {
       "type": "timeseries",
       "title": "JDBC borrow timeouts and statements in flight",
-      "id": 19,
+      "id": 21,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1539,7 +1749,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 65
       },
       "targets": [
         {

@@ -32,6 +32,7 @@ spec:
             - {name: QUERY_PATH, value: {{ .Values.queryPath | quote }}}
             - {name: POLL_SECONDS, value: {{ .Values.pollSeconds | quote }}}
             - {name: LOOKBACK_MINUTES, value: {{ .Values.lookbackMinutes | quote }}}
+            - {name: QUERY_LOG, value: {{ .Values.queryLog | quote }}}
             {{- if .Values.caBundle.configMap }}
             - {name: CA_BUNDLE, value: /etc/atscale-ca/{{ .Values.caBundle.key }}}
             {{- end }}

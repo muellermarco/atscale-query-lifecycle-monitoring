@@ -18,6 +18,7 @@ AtScale records four phases for every query: Inbound Query, Planning, Outbound a
 - [Run with Docker](#run-with-docker)
 - [Import the Grafana dashboard](#import-the-grafana-dashboard)
 - [Read the dashboard](#read-the-dashboard)
+- [Drill down to single queries](#drill-down-to-single-queries)
 - [Configuration](#configuration)
 - [Metrics](#metrics)
 - [Limits](#limits)
@@ -34,6 +35,8 @@ flowchart LR
 ```
 
 The exporter polls the query history every minute. It counts each finished query once, by query ID, and adds its phase durations to the histograms. It reads only durations and these labels: instance name, catalog, model, status, query type, optimization and SQL dialect. It does not export user names or query text.
+
+The exporter also writes one JSON line per query to its log, with the AtScale query ID. If a log store such as Loki collects that log, the dashboard lists single queries. See [Drill down to single queries](#drill-down-to-single-queries).
 
 The phases come from AtScale. The exporter splits Outbound into two parts, because the split shows whether the warehouse or something before it is slow:
 
@@ -158,6 +161,31 @@ Start with Query type = `User`. `System` queries are AtScale's own queries, for 
 
 The table "Catalogs and models, slowest first" shows which model to look at first. The heatmap shows outliers. Find single slow queries on the Queries page in AtScale Design Center.
 
+## Drill down to single queries
+
+Prometheus holds the averages and percentiles, but not single queries. For single queries, the exporter writes one JSON line per query to standard output:
+
+```json
+{"event": "atscale_query", "query_id": "21b348fc-...", "env": "prod", "catalog": "Sales", "model": "Orders",
+ "query_type": "User", "status": "successful", "optimization": "none", "start": "2026-10-21T17:55:14.000Z",
+ "duration_ms": 2585.4, "inbound_ms": 11.4, "planning_ms": 43.0, "outbound_ms": 2530.7,
+ "outbound_wait_ms": 9.7, "warehouse_ms": 2521.0, "result_processing_ms": 0.4, "subqueries": 1}
+```
+
+The line has no user names and no query text.
+
+The table "Slowest queries" reads these lines from Loki. To use it:
+
+1. Collect the exporter's container log in Loki, for example with Grafana Alloy or Promtail.
+2. In the dashboard, select your Loki data source in the `Loki` list.
+3. In `Log selector`, enter a LogQL stream selector that matches the exporter log. The default is `{container="exporter"}`.
+
+   Result: "Slowest queries" lists one row per query, slowest first, with the same filters as the other panels.
+
+4. Copy a `Query ID` and search for it on the Queries page in AtScale Design Center. That page shows the inbound query and the outbound SQL.
+
+If you use another log store, for example Elasticsearch or Splunk, filter on `"event": "atscale_query"` there. The other dashboard panels do not need Loki.
+
 ## Configuration
 
 Environment variables of the exporter. The Helm chart sets them from `values.yaml`.
@@ -173,6 +201,7 @@ Environment variables of the exporter. The Helm chart sets them from `values.yam
 | `PAGE_SIZE`, `MAX_PAGES` | `500`, `20` | Paging of the query history API |
 | `HTTP_TIMEOUT_SECONDS` | `30` | Timeout per API call |
 | `PORT` | `9101` | Port of `/metrics` |
+| `QUERY_LOG` | `true` | Write one JSON line per query to standard output, for drill-down in a log store |
 
 ## Metrics
 

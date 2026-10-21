@@ -188,6 +188,35 @@ panels.append({
     "fieldConfig": {"defaults": {}, "overrides": []}})
 y += 9
 
+LOKI = {"type": "loki", "uid": "${loki}"}
+LOG_FIELDS = ["start", "query_id", "catalog", "model", "query_type", "optimization", "status", "duration_ms",
+              "inbound_ms", "planning_ms", "outbound_wait_ms", "warehouse_ms", "result_processing_ms", "subqueries"]
+panels.append(row("Single queries (needs the exporter's query log in Loki)", y)); y += 1
+panels.append({
+    "type": "table", "title": "Slowest queries", "id": nid(), "datasource": LOKI,
+    "description": "One row per query from the exporter's JSON query log, slowest first. Copy the query_id and search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
+    "gridPos": {"h": 12, "w": 24, "x": 0, "y": y},
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 1000,
+                 "expr": '$log_selector |= "atscale_query" | json | event="atscale_query" | env=~"$env" | query_type=~"$query_type" | catalog=~"$catalog" | model=~"$model" | optimization=~"$optimization" | status=~"$status"'}],
+    "transformations": [
+        {"id": "extractFields", "options": {"source": "Line", "format": "json", "replace": True, "keepTime": False}},
+        {"id": "filterFieldsByName", "options": {"include": {"names": LOG_FIELDS}}},
+        {"id": "organize", "options": {"indexByName": {n: i for i, n in enumerate(LOG_FIELDS)},
+                                       "renameByName": {"start": "Start (UTC)", "query_id": "Query ID", "catalog": "Catalog", "model": "Model",
+                                                        "query_type": "Type", "optimization": "Optimization", "status": "Status",
+                                                        "duration_ms": "Total", "inbound_ms": "Inbound Query", "planning_ms": "Planning",
+                                                        "outbound_wait_ms": "Outbound wait", "warehouse_ms": "Outbound warehouse",
+                                                        "result_processing_ms": "Result Processing", "subqueries": "Subqueries"}}},
+        {"id": "sortBy", "options": {"sort": [{"field": "Total", "desc": True}]}}],
+    "fieldConfig": {"defaults": {"unit": "ms", "decimals": 1, "custom": {"align": "auto", "filterable": True}},
+                    "overrides": [
+                        {"matcher": {"id": "byName", "options": "Subqueries"}, "properties": [{"id": "unit", "value": "short"}, {"id": "decimals", "value": 0}]},
+                        {"matcher": {"id": "byName", "options": "Total"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}},
+                            {"id": "color", "value": {"mode": "continuous-GrYlRd"}}]},
+                        {"matcher": {"id": "byName", "options": "Query ID"}, "properties": [{"id": "custom.minWidth", "value": 300}]}]},
+    "options": {"showHeader": True, "cellHeight": "sm", "footer": {"show": False}}})
+y += 12
+
 panels.append(row("Engine JDBC pools (engine OpenTelemetry metrics)", y)); y += 1
 panels.append({
     "type": "timeseries", "title": "Average JDBC connection borrow time by pool", "id": nid(), "datasource": DS,
@@ -222,6 +251,9 @@ dash = {
     "time": {"from": "now-24h", "to": "now"},
     "templating": {"list": [
         {"name": "datasource", "label": "Prometheus", "type": "datasource", "query": "prometheus", "refresh": 1, "hide": 0},
+        {"name": "loki", "label": "Loki", "type": "datasource", "query": "loki", "refresh": 1, "hide": 0},
+        {"name": "log_selector", "label": "Log selector", "type": "textbox", "query": '{container="exporter"}',
+         "current": {"text": '{container="exporter"}', "value": '{container="exporter"}'}, "hide": 0},
         var("env", "Instance", 'label_values(%s, env)' % base, multi=False, include_all=False),
         var("query_type", "Query type", 'label_values(%s{env=~"$env"}, query_type)' % base, current={"text": ["User"], "value": ["User"], "selected": True}),
         var("catalog", "Catalog", 'label_values(%s{env=~"$env"}, catalog)' % base),

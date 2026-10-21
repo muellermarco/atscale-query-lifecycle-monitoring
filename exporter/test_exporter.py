@@ -104,6 +104,17 @@ class ConfigTests(unittest.TestCase):
         with mock.patch.dict(os.environ, env, clear=True), self.assertRaises(SystemExit):
             x.load_pollers({})
 
+    def test_query_log_line(self):
+        rec = sample_record("log1")
+        phases, count = x.phase_durations(rec)
+        line = x.query_log_line(x.query_labels("prod", rec), rec, phases, count)
+        self.assertEqual(line["event"], "atscale_query")
+        self.assertEqual(line["query_id"], "log1")
+        self.assertEqual(line["outbound_wait_ms"], 660.0)
+        self.assertEqual(line["start"], "1970-01-01T00:00:01.000Z")
+        self.assertNotIn("user", line)
+        self.assertNotIn("userId", line)
+
     def test_metrics_render(self):
         x.record("render", sample_record("r1"))
         text = "\n".join(x.PHASE_HIST.render())

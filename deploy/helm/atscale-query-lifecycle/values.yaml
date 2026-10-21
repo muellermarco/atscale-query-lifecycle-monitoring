@@ -26,6 +26,7 @@ caBundle:
   key: ca.crt
 
 pollSeconds: 60
+queryLog: true              # one JSON line per query on stdout, for drill-down in Loki or another log store
 lookbackMinutes: 30         # queries running longer than this are missed
 
 resources:

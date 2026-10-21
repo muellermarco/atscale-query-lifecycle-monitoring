@@ -18,7 +18,10 @@ Inputs (environment variables):
                          private CA); certificate verification is always on
   POLL_SECONDS (60), LOOKBACK_MINUTES (30), PAGE_SIZE (500), MAX_PAGES (20),
   HTTP_TIMEOUT_SECONDS (30), PORT (9101)
-Outputs: Prometheus text format on http://0.0.0.0:$PORT/metrics
+  QUERY_LOG              true (default) writes one JSON line per query to stdout
+Outputs: Prometheus text format on http://0.0.0.0:$PORT/metrics; with QUERY_LOG, one JSON
+  line per query on stdout (event "atscale_query": queryId, catalog, model, phase ms) for
+  a log store such as Loki. User names and query text are never written.
 Run: python3 exporter.py
 
 Each query is counted once (deduplicated on queryId). Queries already in the history
@@ -37,6 +40,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOG = logging.getLogger("atscale-query-exporter")
+QUERY_LOG = logging.getLogger("atscale-query-exporter.queries")
 
 # Seconds. Inbound and planning are usually 1 to 100 ms, outbound is often seconds.
 BUCKETS = (0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600)
@@ -188,7 +192,20 @@ def record(env, rec):
     for phase, seconds in phases.items():
         PHASE_HIST.observe(labels + (phase,), seconds)
     SUBQ_HIST.observe(labels, subquery_count)
+    if QUERY_LOG.isEnabledFor(logging.INFO):
+        QUERY_LOG.info(json.dumps(query_log_line(labels, rec, phases, subquery_count), sort_keys=True))
     return bool(phases)
+
+
+def query_log_line(labels, rec, phases, subquery_count):
+    """One JSON object per query for drill-down in a log store. No user names, no query text."""
+    line = dict(zip(QUERY_LABELS, labels))
+    line.update({"event": "atscale_query", "query_id": rec.get("queryId"),
+                 "start": iso(rec["startTime"] / 1000.0) if is_num(rec.get("startTime")) else None,
+                 "duration_ms": round(rec["duration"], 1) if is_num(rec.get("duration")) else None,
+                 "subqueries": subquery_count})
+    line.update({"%s_ms" % phase: round(seconds * 1000.0, 1) for phase, seconds in phases.items()})
+    return line
 
 
 class InstancePoller:
@@ -314,8 +331,18 @@ def load_pollers(cfg):
     return pollers
 
 
-def main():
+def setup_logging():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))   # bare JSON, parseable by the log store
+    QUERY_LOG.addHandler(handler)
+    QUERY_LOG.propagate = False
+    enabled = os.environ.get("QUERY_LOG", "true").lower() in ("1", "true", "yes")
+    QUERY_LOG.setLevel(logging.INFO if enabled else logging.WARNING)
+
+
+def main():
+    setup_logging()
     pollers = load_pollers(load_config())
     threading.Thread(target=poll_forever, daemon=True,
                      args=(pollers, int(os.environ.get("POLL_SECONDS", "60")))).start()
