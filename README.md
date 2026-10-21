@@ -20,6 +20,7 @@ AtScale records four phases for every query: Inbound Query, Planning, Outbound a
 - [Read the dashboard](#read-the-dashboard)
 - [Drill down to single queries](#drill-down-to-single-queries)
 - [Find out why queries missed aggregates](#find-out-why-queries-missed-aggregates)
+- [See the compression score of aggregate candidates](#see-the-compression-score-of-aggregate-candidates)
 - [Configuration](#configuration)
 - [Metrics](#metrics)
 - [Limits](#limits)
@@ -205,6 +206,20 @@ When a query uses neither an aggregate nor the cache, the exporter gives it a re
 The panel "Queries without aggregate or cache, by reason" and the table "Misses by catalog, model and reason" show the counts. The table "Slowest queries" shows the reason for each query.
 
 The classification is a rule, not a statement from AtScale. An aggregate counts as created by the query if it was created from 5 seconds before the query started until 10 seconds after it ended. An aggregate that a catalog deployment creates at the same moment also counts.
+
+## See the compression score of aggregate candidates
+
+When AtScale proposes an aggregate, the engine logs a compression score for the candidate: the rows in the fact dataset divided by the estimated rows of the aggregate. If the engine setting `aggregates.create.threshold.enabled` is on, AtScale does not create candidates below `aggregates.create.compression.threshold` (default 3.0). A low score means the aggregate would be about as large as the fact dataset, for example an aggregate at the same grain as a daily fact table.
+
+The row "Aggregate candidates and compression score" shows these scores. It reads the AtScale engine log, not the exporter. To use it:
+
+1. Collect the AtScale engine container log in Loki.
+2. In `Engine log selector`, enter a LogQL stream selector for the engine log of one AtScale instance. The default is `{container="engine"}`.
+3. In `Compression threshold`, enter the value of `aggregates.create.compression.threshold` from Settings > Engine in Design Center. The default is `3`.
+
+   Result: "Aggregate candidates by dataset and grain" lists each fact dataset and aggregate grain with its score. "Below threshold" counts the candidates that AtScale did not create because of the threshold.
+
+The engine log has no catalog or model name, so only the time range filters these panels. The panels depend on the text of an engine log message (rule `R050`), which can change between AtScale releases.
 
 ## Configuration
 

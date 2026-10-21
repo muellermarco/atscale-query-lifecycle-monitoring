@@ -269,6 +269,70 @@ panels.append({
     "options": {"showHeader": True, "cellHeight": "sm", "footer": {"show": False}}})
 y += 12
 
+ENG = ('$engine_log_selector |= "R050 candidate" '
+       r'| regexp `R050 candidate (?P<candidate>\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\S+) and (?P<grain>.*?) is ` '
+       '| regexp `queryId=(?P<query_id>[0-9a-f-]+)` '
+       '| label_format grain=`{{ if .grain }}{{ .grain | replace " ," ", " }}{{ else }}(no keys){{ end }}`')
+SCORE_HELP = ("Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it "
+              "for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below "
+              "aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Loki "
+              "(Engine log selector at the top); the engine log has no catalog or model, so only the time range applies.")
+panels.append(row("Aggregate candidates and compression score (needs the AtScale engine log in Loki)", y)); y += 1
+panels.append({
+    "type": "table", "title": "Aggregate candidates by dataset and grain", "id": nid(), "datasource": LOKI,
+    "description": SCORE_HELP + " Below threshold uses the Compression threshold field at the top.",
+    "gridPos": {"h": 9, "w": 12, "x": 0, "y": y},
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "instant", "expr": "sum by (dataset, grain) (count_over_time(%s [$__range]))" % ENG},
+                {"datasource": LOKI, "refId": "B", "queryType": "instant", "expr": "sum by (dataset, grain) (count_over_time(%s | score < $compression_threshold [$__range]))" % ENG},
+                {"datasource": LOKI, "refId": "C", "queryType": "instant", "expr": "avg by (dataset, grain) (avg_over_time(%s | unwrap score [$__range]))" % ENG}],
+    "transformations": [
+        {"id": "merge", "options": {}},
+        {"id": "organize", "options": {"excludeByName": {"Time": True},
+                                       "renameByName": {"dataset": "Fact dataset", "grain": "Aggregate grain", "Value #A": "Candidates",
+                                                        "Value #B": "Below threshold", "Value #C": "Compression score"},
+                                       "indexByName": {"dataset": 0, "grain": 1, "Value #A": 2, "Value #B": 3, "Value #C": 4}}},
+        {"id": "sortBy", "options": {"sort": [{"field": "Compression score"}]}}],
+    "fieldConfig": {"defaults": {"custom": {"align": "auto"}, "decimals": 0},
+                    "overrides": [
+                        {"matcher": {"id": "byName", "options": "Compression score"}, "properties": [
+                            {"id": "decimals", "value": 2},
+                            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+                            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "green", "value": 3}]}}]},
+                        {"matcher": {"id": "byName", "options": "Below threshold"}, "properties": [
+                            {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "text", "value": None}, {"color": "red", "value": 1}]}}]}]},
+    "options": {"showHeader": True, "cellHeight": "sm"}})
+panels.append({
+    "type": "timeseries", "title": "Candidates below the compression threshold", "id": nid(), "datasource": LOKI,
+    "description": "Aggregate candidates per interval whose compression score is below the Compression threshold field, by fact dataset. " + SCORE_HELP,
+    "gridPos": {"h": 9, "w": 12, "x": 12, "y": y}, "interval": "5m",
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "legendFormat": "{{dataset}}",
+                 "expr": "sum by (dataset) (count_over_time(%s | score < $compression_threshold [$__interval]))" % ENG}],
+    "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "custom": {"drawStyle": "bars", "fillOpacity": 80, "stacking": {"mode": "normal"}}}, "overrides": []},
+    "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}})
+y += 9
+CAND_FIELDS = ["Time", "query_id", "dataset", "grain", "score", "candidate"]
+panels.append({
+    "type": "table", "title": "Aggregate candidates per query", "id": nid(), "datasource": LOKI,
+    "description": "One row per aggregate candidate, lowest score first. Search the Query ID in Slowest queries or on the Queries page in AtScale Design Center. " + SCORE_HELP,
+    "gridPos": {"h": 10, "w": 24, "x": 0, "y": y},
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 1000, "expr": ENG}],
+    "transformations": [
+        {"id": "extractFields", "options": {"source": "labels", "format": "auto", "replace": False, "keepTime": True}},
+        {"id": "filterFieldsByName", "options": {"include": {"names": CAND_FIELDS}}},
+        {"id": "convertFieldType", "options": {"conversions": [{"targetField": "score", "destinationType": "number"}]}},
+        {"id": "organize", "options": {"indexByName": {n: i for i, n in enumerate(CAND_FIELDS)},
+                                       "renameByName": {"query_id": "Query ID", "dataset": "Fact dataset", "grain": "Aggregate grain",
+                                                        "score": "Compression score", "candidate": "Candidate ID"}}},
+        {"id": "sortBy", "options": {"sort": [{"field": "Compression score"}]}}],
+    "fieldConfig": {"defaults": {"custom": {"align": "auto", "filterable": True}},
+                    "overrides": [{"matcher": {"id": "byName", "options": "Compression score"}, "properties": [
+                        {"id": "decimals", "value": 2},
+                        {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+                        {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "green", "value": 3}]}}]}]},
+    "options": {"showHeader": True, "cellHeight": "sm"}})
+y += 10
+
 panels.append(row("Engine JDBC pools (engine OpenTelemetry metrics)", y)); y += 1
 panels.append({
     "type": "timeseries", "title": "Average JDBC connection borrow time by pool", "id": nid(), "datasource": DS,
@@ -304,6 +368,10 @@ dash = {
     "templating": {"list": [
         {"name": "datasource", "label": "Prometheus", "type": "datasource", "query": "prometheus", "refresh": 1, "hide": 0},
         {"name": "loki", "label": "Loki", "type": "datasource", "query": "loki", "refresh": 1, "hide": 0},
+        {"name": "engine_log_selector", "label": "Engine log selector", "type": "textbox", "query": '{container="engine"}',
+         "current": {"text": '{container="engine"}', "value": '{container="engine"}'}, "hide": 0},
+        {"name": "compression_threshold", "label": "Compression threshold", "type": "textbox", "query": "3",
+         "current": {"text": "3", "value": "3"}, "hide": 0},
         {"name": "log_selector", "label": "Log selector", "type": "textbox", "query": '{container="exporter"}',
          "current": {"text": '{container="exporter"}', "value": '{container="exporter"}'}, "hide": 0},
         var("env", "Instance", 'label_values(%s, env)' % base, multi=False, include_all=False),
