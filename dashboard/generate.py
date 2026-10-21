@@ -337,15 +337,17 @@ SUG_FIELDS = ["start", "query_id", "catalog", "model", "duration_ms", "miss_reas
               "suggestion", "attributes", "measures"]
 EXP_Q = ('$log_selector |= "atscale_query" | json | event="atscale_query" | env=~"$env" | query_type=~"$query_type" '
          '| catalog=~"$catalog" | model=~"$model" | duration_ms >= $min_runtime_ms')
-ENG_SUG = (ENG + ' | label_format suggestion=`{{ if lt (float64 .score) (float64 "$compression_threshold") }}'
-           'Create a user-defined aggregate on {{ .dataset }} with the attributes and measures of this query{{ else }}'
-           'Score meets the threshold: AtScale can create this aggregate itself. If the query still misses, look for another cause{{ end }}`')
+# Only candidates below the threshold need a user-defined aggregate. The suggestion sentence needs fields from
+# both logs; Grafana cannot join strings, so the Suggestion cell is a data link whose title fills them in per row.
+ENG_SUG = ENG + ' | score < $compression_threshold | label_format suggestion=`{{ .dataset }}`'
+SUGGESTION_TEXT = ("Create a user-defined aggregate on ${__data.fields.dataset} with the attributes "
+                   "${__data.fields.attributes} and the measures ${__data.fields.measures}")
 panels.append({
     "type": "table", "title": "Aggregate suggestions for slow queries", "id": nid(), "datasource": LOKI,
     "description": ("Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine "
-                    "proposed for them. When a candidate is below the Compression threshold, AtScale does not create it; the "
+                    "proposed for them that are below the Compression threshold. AtScale does not create those; the "
                     "suggestion is a user-defined aggregate on that fact dataset at the grain of the query (its attributes) with "
-                    "its measures. Check before you create it: the query's attributes must be coarser than the rejected grain "
+                    "its measures. Candidates that meet the threshold are in Aggregate candidates per query. Check before you create it: the query's attributes must be coarser than the rejected grain "
                     "(for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics "
                     "they use. Queries that used an aggregate have no candidates and do not appear. " + SCORE_HELP),
     "gridPos": {"h": 12, "w": 24, "x": 0, "y": y},
@@ -376,7 +378,10 @@ panels.append({
                         {"matcher": {"id": "byName", "options": "Compression score"}, "properties": [{"id": "decimals", "value": 2},
                             {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
                             {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "green", "value": 3}]}}]},
-                        {"matcher": {"id": "byName", "options": "Suggestion"}, "properties": [{"id": "custom.minWidth", "value": 320}, {"id": "custom.inspect", "value": True}]},
+                        {"matcher": {"id": "byName", "options": "Suggestion"}, "properties": [
+                            {"id": "custom.minWidth", "value": 420},
+                            {"id": "custom.cellOptions", "value": {"type": "data-links"}},
+                            {"id": "links", "value": [{"title": SUGGESTION_TEXT, "url": "#"}]}]},
                         {"matcher": {"id": "byName", "options": "UDA attributes (query grain)"}, "properties": [{"id": "custom.minWidth", "value": 220}, {"id": "custom.inspect", "value": True}]},
                         {"matcher": {"id": "byName", "options": "UDA measures"}, "properties": [{"id": "custom.minWidth", "value": 260}, {"id": "custom.inspect", "value": True}]}]},
     "options": {"showHeader": True, "cellHeight": "sm"}})

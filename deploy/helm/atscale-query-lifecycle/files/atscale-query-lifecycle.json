@@ -2396,7 +2396,7 @@
         "type": "loki",
         "uid": "${loki}"
       },
-      "description": "Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine proposed for them. When a candidate is below the Compression threshold, AtScale does not create it; the suggestion is a user-defined aggregate on that fact dataset at the grain of the query (its attributes) with its measures. Check before you create it: the query's attributes must be coarser than the rejected grain (for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics they use. Queries that used an aggregate have no candidates and do not appear. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Loki (Engine log selector at the top); the engine log has no catalog or model, so only the time range applies.",
+      "description": "Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine proposed for them that are below the Compression threshold. AtScale does not create those; the suggestion is a user-defined aggregate on that fact dataset at the grain of the query (its attributes) with its measures. Candidates that meet the threshold are in Aggregate candidates per query. Check before you create it: the query's attributes must be coarser than the rejected grain (for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics they use. Queries that used an aggregate have no candidates and do not appear. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Loki (Engine log selector at the top); the engine log has no catalog or model, so only the time range applies.",
       "gridPos": {
         "h": 12,
         "w": 24,
@@ -2422,7 +2422,7 @@
           "refId": "B",
           "queryType": "range",
           "maxLines": 1000,
-          "expr": "$engine_log_selector |= \"R050 candidate\" | regexp `R050 candidate (?P<candidate>\\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\\S+) and (?P<grain>.*?) is ` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | label_format grain=`{{ if .grain }}{{ .grain | replace \" ,\" \", \" }}{{ else }}(no keys){{ end }}` | label_format suggestion=`{{ if lt (float64 .score) (float64 \"$compression_threshold\") }}Create a user-defined aggregate on {{ .dataset }} with the attributes and measures of this query{{ else }}Score meets the threshold: AtScale can create this aggregate itself. If the query still misses, look for another cause{{ end }}`"
+          "expr": "$engine_log_selector |= \"R050 candidate\" | regexp `R050 candidate (?P<candidate>\\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\\S+) and (?P<grain>.*?) is ` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | label_format grain=`{{ if .grain }}{{ .grain | replace \" ,\" \", \" }}{{ else }}(no keys){{ end }}` | score < $compression_threshold | label_format suggestion=`{{ .dataset }}`"
         }
       ],
       "transformations": [
@@ -2649,11 +2649,22 @@
             "properties": [
               {
                 "id": "custom.minWidth",
-                "value": 320
+                "value": 420
               },
               {
-                "id": "custom.inspect",
-                "value": true
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "data-links"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Create a user-defined aggregate on ${__data.fields.dataset} with the attributes ${__data.fields.attributes} and the measures ${__data.fields.measures}",
+                    "url": "#"
+                  }
+                ]
               }
             ]
           },

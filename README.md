@@ -220,7 +220,7 @@ The row "Aggregate candidates and compression score" shows these scores. It read
 
    Result: "Aggregate candidates by dataset and grain" lists each fact dataset and aggregate grain with its score. "Below threshold" counts the candidates that AtScale did not create because of the threshold.
 
-The table "Aggregate suggestions for slow queries" combines both logs. It lists queries that ran at least `Min runtime (ms)`, joined on the query ID with the aggregate candidates the engine proposed for them. For a candidate below the threshold, it suggests a user-defined aggregate on that fact dataset with the attributes and measures of the query. Treat the suggestion as a starting point:
+The table "Aggregate suggestions for slow queries" combines both logs. It lists queries that ran at least `Min runtime (ms)`, joined on the query ID with the aggregate candidates below the threshold that the engine proposed for them. The Suggestion column names the fact dataset, the attributes and the measures, for example "Create a user-defined aggregate on FACT_STORE_SALES_DAY with the attributes Fiscal Quarter, Store and the measures Net Sales". Candidates that meet the threshold are in "Aggregate candidates per query". Treat the suggestion as a starting point:
 
 - The attributes of the query must be coarser than the rejected grain, for example Fiscal Quarter instead of Day. Otherwise the aggregate has the same low compression.
 - Calculated measures cannot go into an aggregate. Replace them with the base metrics they use.
