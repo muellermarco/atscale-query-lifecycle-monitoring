@@ -69,7 +69,8 @@
           ],
           "value": [
             "User"
-          ]
+          ],
+          "selected": true
         }
       },
       {
@@ -232,7 +233,7 @@
     },
     {
       "type": "stat",
-      "title": "Average duration",
+      "title": "Avg duration",
       "id": 3,
       "datasource": {
         "type": "prometheus",
@@ -293,7 +294,7 @@
     },
     {
       "type": "stat",
-      "title": "p50 duration",
+      "title": "p50",
       "id": 4,
       "datasource": {
         "type": "prometheus",
@@ -354,7 +355,7 @@
     },
     {
       "type": "stat",
-      "title": "p95 duration",
+      "title": "p95",
       "id": 5,
       "datasource": {
         "type": "prometheus",
@@ -415,7 +416,7 @@
     },
     {
       "type": "stat",
-      "title": "Served from aggregates or cache",
+      "title": "Aggs or cache",
       "id": 6,
       "datasource": {
         "type": "prometheus",
@@ -476,7 +477,7 @@
     },
     {
       "type": "stat",
-      "title": "Exporter polling",
+      "title": "Exporter up",
       "id": 7,
       "datasource": {
         "type": "prometheus",
@@ -563,7 +564,7 @@
       "description": "Average per query. Outbound is split into the time spent waiting before the warehouse call (connection pool, queueing, SQL generation) and the time the warehouse subqueries ran (parallel subqueries counted once).",
       "gridPos": {
         "h": 9,
-        "w": 9,
+        "w": 12,
         "x": 0,
         "y": 6
       },
@@ -573,7 +574,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])) / sum by (phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound: wait before warehouse\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound: warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])) / sum by (phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
           "refId": "A",
           "legendFormat": "{{phase}}",
           "format": "time_series",
@@ -593,13 +594,14 @@
           "fields": ""
         },
         "namePlacement": "left",
-        "valueMode": "color"
+        "valueMode": "color",
+        "minVizWidth": 0
       },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
           "min": 0,
-          "decimals": 3,
+          "decimals": 1,
           "color": {
             "mode": "fixed",
             "fixedColor": "#5794F2"
@@ -639,7 +641,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Outbound: wait before warehouse"
+              "options": "Outbound wait"
             },
             "properties": [
               {
@@ -654,7 +656,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Outbound: warehouse"
+              "options": "Outbound warehouse"
             },
             "properties": [
               {
@@ -695,8 +697,8 @@
       "description": "Which phase consumes most of the summed server time in the range.",
       "gridPos": {
         "h": 9,
-        "w": 6,
-        "x": 9,
+        "w": 12,
+        "x": 12,
         "y": 6
       },
       "targets": [
@@ -705,7 +707,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound: wait before warehouse\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound: warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
           "refId": "A",
           "legendFormat": "{{phase}}",
           "format": "time_series",
@@ -771,7 +773,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Outbound: wait before warehouse"
+              "options": "Outbound wait"
             },
             "properties": [
               {
@@ -786,7 +788,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Outbound: warehouse"
+              "options": "Outbound warehouse"
             },
             "properties": [
               {
@@ -826,10 +828,10 @@
       },
       "description": "Average and percentiles per phase. Percentiles are estimated from histogram buckets.",
       "gridPos": {
-        "h": 9,
-        "w": 9,
-        "x": 15,
-        "y": 6
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 15
       },
       "targets": [
         {
@@ -837,7 +839,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])) / sum by (phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound: wait before warehouse\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound: warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])) / sum by (phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
           "refId": "A",
           "legendFormat": "{{phase}}",
           "format": "table",
@@ -849,7 +851,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.5, sum by (le, phase) (increase(atscale_query_phase_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range]))), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound: wait before warehouse\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound: warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.5, sum by (le, phase) (increase(atscale_query_phase_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range]))), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
           "refId": "B",
           "legendFormat": "{{phase}}",
           "format": "table",
@@ -861,7 +863,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.95, sum by (le, phase) (increase(atscale_query_phase_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range]))), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound: wait before warehouse\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound: warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.95, sum by (le, phase) (increase(atscale_query_phase_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range]))), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
           "refId": "C",
           "legendFormat": "{{phase}}",
           "format": "table",
@@ -873,7 +875,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.99, sum by (le, phase) (increase(atscale_query_phase_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range]))), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound: wait before warehouse\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound: warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.99, sum by (le, phase) (increase(atscale_query_phase_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range]))), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
           "refId": "D",
           "legendFormat": "{{phase}}",
           "format": "table",
@@ -923,7 +925,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "decimals": 3
+          "decimals": 1
         },
         "overrides": []
       },
@@ -945,7 +947,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 22
       },
       "interval": "5m",
       "targets": [
@@ -954,7 +956,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__interval])) / sum by (phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__interval])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound: wait before warehouse\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound: warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__interval])) / sum by (phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__interval])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
           "refId": "A",
           "legendFormat": "{{phase}}",
           "format": "time_series"
@@ -1020,7 +1022,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Outbound: wait before warehouse"
+              "options": "Outbound wait"
             },
             "properties": [
               {
@@ -1035,7 +1037,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Outbound: warehouse"
+              "options": "Outbound warehouse"
             },
             "properties": [
               {
@@ -1074,7 +1076,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 31
       },
       "panels": []
     },
@@ -1091,7 +1093,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 32
       },
       "targets": [
         {
@@ -1371,7 +1373,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 42
       },
       "targets": [
         {
@@ -1379,7 +1381,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (optimization, phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])) / sum by (optimization, phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound: wait before warehouse\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound: warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (optimization, phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])) / sum by (optimization, phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
           "refId": "A",
           "legendFormat": "{{optimization}} \u00b7 {{phase}}",
           "format": "time_series",
@@ -1426,7 +1428,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 42
       },
       "interval": "5m",
       "targets": [
@@ -1474,7 +1476,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 51
       },
       "panels": []
     },
@@ -1491,7 +1493,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 45
+        "y": 52
       },
       "targets": [
         {
@@ -1537,7 +1539,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 45
+        "y": 52
       },
       "targets": [
         {

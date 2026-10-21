@@ -20,8 +20,8 @@ P = "atscale_query_phase_duration_seconds"
 PH = 'phase=~"inbound|planning|outbound_wait|warehouse|result_processing"'
 PHASE_COLORS = {"inbound": "#8AB8FF", "planning": "#FFB357", "outbound_wait": "#F2495C",
                 "warehouse": "#5794F2", "result_processing": "#73BF69"}
-PHASE_NAMES = {"inbound": "Inbound Query", "planning": "Planning", "outbound_wait": "Outbound: wait before warehouse",
-               "warehouse": "Outbound: warehouse", "result_processing": "Result Processing", "outbound": "Outbound (total)"}
+PHASE_NAMES = {"inbound": "Inbound Query", "planning": "Planning", "outbound_wait": "Outbound wait",
+               "warehouse": "Outbound warehouse", "result_processing": "Result Processing", "outbound": "Outbound (total)"}
 
 pid = [0]
 def nid():
@@ -67,15 +67,15 @@ panels.append(row("Overview for the selected range", y)); y += 1
 panels += [
     stat("Queries", 'sum(increase(%s_count{%s}[$__range]))' % (Q, F), "short", 0, y, decimals=0,
          desc="Queries that finished in the selected range (from the AtScale query history)."),
-    stat("Average duration", 'sum(increase(%s_sum{%s}[$__range])) / sum(increase(%s_count{%s}[$__range]))' % (Q, F, Q, F), "s", 4, y,
+    stat("Avg duration", 'sum(increase(%s_sum{%s}[$__range])) / sum(increase(%s_count{%s}[$__range]))' % (Q, F, Q, F), "s", 4, y,
          desc="End-to-end server time per query: Inbound Query + Planning + Outbound + Result Processing."),
-    stat("p50 duration", 'histogram_quantile(0.50, sum by (le) (increase(%s_bucket{%s}[$__range])))' % (Q, F), "s", 8, y,
+    stat("p50", 'histogram_quantile(0.50, sum by (le) (increase(%s_bucket{%s}[$__range])))' % (Q, F), "s", 8, y,
          desc="Median, estimated from histogram buckets."),
-    stat("p95 duration", 'histogram_quantile(0.95, sum by (le) (increase(%s_bucket{%s}[$__range])))' % (Q, F), "s", 12, y,
+    stat("p95", 'histogram_quantile(0.95, sum by (le) (increase(%s_bucket{%s}[$__range])))' % (Q, F), "s", 12, y,
          desc="95th percentile, estimated from histogram buckets."),
-    stat("Served from aggregates or cache", 'sum(increase(%s_count{%s,optimization!="none"}[$__range])) / sum(increase(%s_count{%s}[$__range]))' % (Q, F, Q, F),
+    stat("Aggs or cache", 'sum(increase(%s_count{%s,optimization!="none"}[$__range])) / sum(increase(%s_count{%s}[$__range]))' % (Q, F, Q, F),
          "percentunit", 16, y, desc="Share of queries AtScale answered from an aggregate table or the query cache."),
-    stat("Exporter polling", 'min(atscale_query_exporter_up{env=~"$env"})', "short", 20, y,
+    stat("Exporter up", 'min(atscale_query_exporter_up{env=~"$env"})', "short", 20, y,
          desc="1 = the last poll of every selected AtScale instance succeeded.",
          thresholds={"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "green", "value": 1}]}),
 ]
@@ -86,17 +86,17 @@ avg_phase = phase_legend('sum by (phase) (increase(%s_sum{%s,%s}[$__range])) / s
 panels.append({
     "type": "bargauge", "title": "Average time per phase", "id": nid(), "datasource": DS,
     "description": "Average per query. Outbound is split into the time spent waiting before the warehouse call (connection pool, queueing, SQL generation) and the time the warehouse subqueries ran (parallel subqueries counted once).",
-    "gridPos": {"h": 9, "w": 9, "x": 0, "y": y},
+    "gridPos": {"h": 9, "w": 12, "x": 0, "y": y},
     "targets": [tgt(avg_phase, "{{phase}}", instant=True)],
     "options": {"orientation": "horizontal", "displayMode": "basic", "showUnfilled": True,
-                "reduceOptions": {"calcs": ["lastNotNull"], "values": False, "fields": ""}, "namePlacement": "left", "valueMode": "color"},
-    "fieldConfig": {"defaults": {"unit": "s", "min": 0, "decimals": 3, "color": {"mode": "fixed", "fixedColor": "#5794F2"}},
+                "reduceOptions": {"calcs": ["lastNotNull"], "values": False, "fields": ""}, "namePlacement": "left", "valueMode": "color", "minVizWidth": 0},
+    "fieldConfig": {"defaults": {"unit": "s", "min": 0, "decimals": 1, "color": {"mode": "fixed", "fixedColor": "#5794F2"}},
                     "overrides": phase_overrides()}})
 share = phase_legend('sum by (phase) (increase(%s_sum{%s,%s}[$__range]))' % (P, F, PH))
 panels.append({
     "type": "piechart", "title": "Share of total query time", "id": nid(), "datasource": DS,
     "description": "Which phase consumes most of the summed server time in the range.",
-    "gridPos": {"h": 9, "w": 6, "x": 9, "y": y},
+    "gridPos": {"h": 9, "w": 12, "x": 12, "y": y},
     "targets": [tgt(share, "{{phase}}", instant=True)],
     "options": {"pieType": "donut", "legend": {"displayMode": "table", "placement": "bottom", "values": ["percent"]},
                 "reduceOptions": {"calcs": ["lastNotNull"], "values": False, "fields": ""},
@@ -110,15 +110,15 @@ pq.insert(0, tgt(avg_phase, "{{phase}}", ref="A", instant=True, fmt="table"))
 panels.append({
     "type": "table", "title": "Phase statistics", "id": nid(), "datasource": DS,
     "description": "Average and percentiles per phase. Percentiles are estimated from histogram buckets.",
-    "gridPos": {"h": 9, "w": 9, "x": 15, "y": y}, "targets": pq,
+    "gridPos": {"h": 7, "w": 24, "x": 0, "y": y + 9}, "targets": pq,
     "transformations": [
         {"id": "joinByField", "options": {"byField": "phase", "mode": "outer"}},
         {"id": "organize", "options": {"excludeByName": {"Time": True, "Time 1": True, "Time 2": True, "Time 3": True, "Time 4": True},
                                        "renameByName": {"phase": "Phase", "Value #A": "Average", "Value #B": "p50", "Value #C": "p95", "Value #D": "p99"}}},
         {"id": "sortBy", "options": {"sort": [{"field": "Average", "desc": True}]}}],
-    "fieldConfig": {"defaults": {"unit": "s", "decimals": 3}, "overrides": []},
+    "fieldConfig": {"defaults": {"unit": "s", "decimals": 1}, "overrides": []},
     "options": {"showHeader": True, "cellHeight": "sm"}})
-y += 9
+y += 16
 ts_phase = phase_legend('sum by (phase) (increase(%s_sum{%s,%s}[$__interval])) / sum by (phase) (increase(%s_count{%s,%s}[$__interval]))' % (P, F, PH, P, F, PH))
 panels.append({
     "type": "timeseries", "title": "Average time per phase over time (stacked)", "id": nid(), "datasource": DS,
@@ -223,7 +223,7 @@ dash = {
     "templating": {"list": [
         {"name": "datasource", "label": "Prometheus", "type": "datasource", "query": "prometheus", "refresh": 1, "hide": 0},
         var("env", "Instance", 'label_values(%s, env)' % base, multi=False, include_all=False),
-        var("query_type", "Query type", 'label_values(%s{env=~"$env"}, query_type)' % base, current={"text": ["User"], "value": ["User"]}),
+        var("query_type", "Query type", 'label_values(%s{env=~"$env"}, query_type)' % base, current={"text": ["User"], "value": ["User"], "selected": True}),
         var("catalog", "Catalog", 'label_values(%s{env=~"$env"}, catalog)' % base),
         var("model", "Model", 'label_values(%s{env=~"$env",catalog=~"$catalog"}, model)' % base),
         var("optimization", "Optimization", 'label_values(%s{env=~"$env"}, optimization)' % base),

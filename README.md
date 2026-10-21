@@ -6,6 +6,8 @@ A Prometheus exporter and a Grafana dashboard that show where AtScale queries sp
 
 AtScale records four phases for every query: Inbound Query, Planning, Outbound and Result Processing. The exporter reads these phases from the AtScale query history API and turns them into Prometheus histograms. The dashboard then shows averages and percentiles per phase, catalog and model, so you can see which phase has the most impact on query performance.
 
+![AtScale query lifecycle dashboard in Grafana](docs/img/dashboard.png)
+
 ## Contents
 
 - [How it works](#how-it-works)
