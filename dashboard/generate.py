@@ -49,7 +49,7 @@ def row(title, y, desc=""):
     return {"type": "row", "title": title, "id": nid(), "collapsed": False,
             "gridPos": {"h": 1, "w": 24, "x": 0, "y": y}, "panels": []}
 
-def stat(title, expr, unit, x, y, w=4, desc="", decimals=None, thresholds=None):
+def stat(title, expr, unit, x, y, w=4, desc="", decimals=None, thresholds=None, time_from=None):
     p = {"type": "stat", "title": title, "id": nid(), "datasource": DS, "description": desc,
          "gridPos": {"h": 4, "w": w, "x": x, "y": y},
          "targets": [tgt(expr, instant=True)],
@@ -59,6 +59,7 @@ def stat(title, expr, unit, x, y, w=4, desc="", decimals=None, thresholds=None):
                          "thresholds": thresholds or {"mode": "absolute", "steps": [{"color": "text", "value": None}]}},
                          "overrides": []}}
     if decimals is not None: p["fieldConfig"]["defaults"]["decimals"] = decimals
+    if time_from: p["timeFrom"] = time_from
     return p
 
 panels = []
@@ -76,8 +77,9 @@ panels += [
     stat("Aggs or cache", 'sum(increase(%s_count{%s,optimization!="none"}[$__range])) / sum(increase(%s_count{%s,miss_reason!="no_warehouse"}[$__range]))' % (Q, F, Q, F),
          "percentunit", 16, y, desc="Share of queries AtScale answered from an aggregate table or the query cache. Queries that never reached the warehouse are left out."),
     stat("Exporter up", 'min(atscale_query_exporter_up{env=~"$env"})', "short", 20, y,
-         desc="1 = the last poll of every selected AtScale instance succeeded.",
-         thresholds={"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "green", "value": 1}]}),
+         desc="1 = the last poll of every selected AtScale instance succeeded. Always shows the last 5 minutes, whatever the dashboard time range.",
+         thresholds={"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "green", "value": 1}]},
+         time_from="5m"),   # a status of now, not of the selected range
 ]
 y += 4
 

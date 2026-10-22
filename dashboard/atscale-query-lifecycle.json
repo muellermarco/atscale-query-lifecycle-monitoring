@@ -568,7 +568,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "1 = the last poll of every selected AtScale instance succeeded.",
+      "description": "1 = the last poll of every selected AtScale instance succeeded. Always shows the last 5 minutes, whatever the dashboard time range.",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -623,7 +623,8 @@
           }
         },
         "overrides": []
-      }
+      },
+      "timeFrom": "5m"
     },
     {
       "type": "row",
