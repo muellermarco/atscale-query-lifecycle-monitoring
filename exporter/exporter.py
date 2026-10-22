@@ -27,8 +27,8 @@ Inputs (environment variables):
 Outputs: Prometheus text format on http://0.0.0.0:$PORT/metrics (health check: /healthz); with QUERY_LOG, one JSON
   line per query on stdout (event "atscale_query": queryId, catalog, model, attribute and
   measure names, phase ms) for a log store such as Loki. For queries that reached the
-  warehouse without aggregate or cache it adds uda_sml: an SML "aggregates:" block with the
-  query's attributes (and their dimensions) and measures, to paste into the model file.
+  warehouse without aggregate or cache it adds one "atscale_uda_suggestion" line per fact
+  dataset with uda_sml: an SML "aggregates:" block for that dataset, to paste into the model file.
   User names and query text are never written.
 Run: python3 exporter.py
 
@@ -248,9 +248,10 @@ def record(env, rec, created_ms=None, model_index=None):
     SUBQ_HIST.observe(labels, subquery_count)
     if QUERY_LOG.isEnabledFor(logging.INFO):
         line = query_log_line(labels, rec, phases, subquery_count)
-        if model_index is not None and needs_aggregate_check(rec):
-            line["uda_sml"] = uda_sml(rec, model_index)
         QUERY_LOG.info(json.dumps(line, sort_keys=True))
+        if model_index is not None and needs_aggregate_check(rec):
+            for suggestion in suggestion_lines(line, rec, model_index):
+                QUERY_LOG.info(json.dumps(suggestion, sort_keys=True))
     return bool(phases)
 
 
@@ -361,45 +362,59 @@ def base_metrics(measure, index, seen=None):
     return out
 
 
-def uda_sml(rec, index):
-    """SML "aggregates:" block for the query: one UDA per fact dataset with the base metrics the
-    query's measures use and the query's attributes related to that dataset; notes as comments."""
+def uda_by_dataset(rec, index):
+    """UDA suggestion for one query, per fact dataset: (common comment lines, {dataset: (comment lines,
+    YAML lines of one aggregate)}). One UDA per fact dataset with the base metrics the query's measures
+    use and the query's attributes related to that dataset."""
     measures = sorted(m for m in rec.get("measures") or [] if not m.startswith(ENGINE_HELPER_PREFIX))
-    metrics, notes = set(), []
+    metrics, common = set(), []
     for measure in measures:
         found = base_metrics(measure, index)
         metrics |= found
         if not found:
-            notes.append("# skipped %s: no base metric found in the model" % measure)
+            common.append("# skipped %s: no base metric found in the model" % measure)
     attributes, attr_notes = uda_attributes(sorted(rec.get("attributes") or []), index)
+    common += attr_notes
     if not metrics:
-        return "\n".join(notes + attr_notes + dimension_only_udas(rec.get("modelName"), attributes, index))
+        return dimension_only_udas(rec.get("modelName"), attributes, index, common)
     by_dataset = {}
     for metric in sorted(metrics):
         by_dataset.setdefault(index["metric_dataset"][metric], []).append(metric)
-    lines = ["aggregates:"]
+    out = {}
     for dataset, dataset_metrics in sorted(by_dataset.items()):
         related, unrelated = split_related(attributes, dataset, index)
-        attr_notes += ["# left out %s for %s: %s has no relationship to it" % (a, dataset, d) for a, d in unrelated]
-        lines += uda_entry(rec.get("modelName"), dataset, related, dataset_metrics)
-    return "\n".join(notes + attr_notes + lines)
+        notes = ["# left out %s: %s has no relationship to %s" % (a, d, dataset) for a, d in unrelated]
+        out[dataset] = (notes, uda_entry(rec.get("modelName"), dataset, related, dataset_metrics))
+    return common, out
 
 
-def dimension_only_udas(model, attributes, index):
+def dimension_only_udas(model, attributes, index, common):
     """A query without measures that reached the warehouse reads a fact dataset to find the attribute
     combinations that exist. SML needs at least one metric, so suggest one UDA per fact dataset that
     relates to all the attributes, with one metric of that dataset."""
     datasets = sorted(d for d in index["dataset_keys"] if attributes and not split_related(attributes, d, index)[1])
-    if not datasets:
-        return ["# no UDA: the query has no measures and no fact dataset relates to all its attributes"]
-    lines = ["# the query has no measures: AtScale reads a fact dataset to find which attribute combinations exist.",
-             "# A UDA needs at least one metric; keep the one on the Fact dataset the dashboard shows for this query.",
-             "aggregates:"]
+    note = ["# the query has no measures: AtScale reads the fact dataset to find which attribute combinations",
+            "# exist. A UDA needs at least one metric, so this one has one metric of the dataset."]
+    out = {}
     for dataset in datasets:
         metrics = sorted(m for m, d in index["metric_dataset"].items() if d == dataset)
         if metrics:
-            lines += uda_entry(model, dataset, attributes, metrics[:1])
-    return lines
+            out[dataset] = (note, uda_entry(model, dataset, attributes, metrics[:1]))
+    if not out:
+        common = common + ["# no UDA: the query has no measures and no fact dataset relates to all its attributes"]
+    return common, out
+
+
+def uda_sml(rec, index, dataset=None):
+    """SML "aggregates:" block for the query, or for one of its fact datasets."""
+    common, per_dataset = uda_by_dataset(rec, index)
+    chosen = {k: v for k, v in per_dataset.items() if dataset in (None, k)}
+    if not chosen:
+        return "\n".join(common)
+    notes = [n for k in sorted(chosen) for n in chosen[k][0] if n not in common]
+    notes = list(dict.fromkeys(notes))
+    entries = [line for k in sorted(chosen) for line in chosen[k][1]]
+    return "\n".join(common + notes + ["aggregates:"] + entries)
 
 
 def split_related(attributes, dataset, index):
@@ -435,6 +450,17 @@ def uda_attributes(attrs, index):
             if len(dims) > 1:
                 notes.append("# check %s: also in %s" % (attr, ", ".join(dims[1:])))
     return out, notes
+
+
+def suggestion_lines(query_line, rec, index):
+    """One "atscale_uda_suggestion" log line per fact dataset of the query, with its own UDA."""
+    keep = ("env", "catalog", "model", "query_type", "miss_reason", "query_id", "start", "duration_ms")
+    _, per_dataset = uda_by_dataset(rec, index)
+    for dataset in sorted(per_dataset):
+        line = {k: query_line.get(k) for k in keep}
+        line.update({"event": "atscale_uda_suggestion", "dataset": dataset,
+                     "uda_sml": uda_sml(rec, index, dataset)})
+        yield line
 
 
 class InstancePoller:

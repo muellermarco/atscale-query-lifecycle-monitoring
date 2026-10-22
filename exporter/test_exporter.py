@@ -141,10 +141,30 @@ class UdaTests(unittest.TestCase):
 
     def test_calculation_split_per_fact_dataset(self):
         text = self.uda(["Fiscal Year", "Store"], ["Index"])
-        self.assertIn("# left out Store for FACT_CHAIN: Store Dim has no relationship to it", text)
+        self.assertIn("# left out Store: Store Dim has no relationship to FACT_CHAIN", text)
         self.assertEqual(text.count("  - unique_name: uda_"), 2)
         self.assertIn("    label: \"Suggested on FACT_CHAIN: Fiscal Year\"", text)
         self.assertIn("      - name: Store\n        dimension: Store Dim\n    metrics:\n      - Net Sales", text)
+
+    def test_one_dataset_only(self):
+        rec = {"modelName": "sales_model", "attributes": ["Fiscal Year", "Store"], "measures": ["Index"]}
+        sales = x.uda_sml(rec, self.index, "FACT_SALES")
+        chain = x.uda_sml(rec, self.index, "FACT_CHAIN")
+        self.assertEqual(sales.count("unique_name:"), 1)
+        self.assertNotIn("FACT_CHAIN", sales)
+        self.assertIn("# left out Store: Store Dim has no relationship to FACT_CHAIN", chain)
+        self.assertNotIn("Net Sales", chain)
+
+    def test_suggestion_lines_per_dataset(self):
+        rec = {"modelName": "sales_model", "attributes": ["Fiscal Year", "Store"], "measures": ["Index"]}
+        query_line = {"env": "prod", "catalog": "c", "model": "sales_model", "query_type": "User",
+                      "miss_reason": "no_aggregate_created", "query_id": "q1", "start": "s", "duration_ms": 5.0,
+                      "inbound_ms": 1.0}
+        lines = list(x.suggestion_lines(query_line, rec, self.index))
+        self.assertEqual([l["dataset"] for l in lines], ["FACT_CHAIN", "FACT_SALES"])
+        self.assertEqual({l["event"] for l in lines}, {"atscale_uda_suggestion"})
+        self.assertNotIn("inbound_ms", lines[0])
+        self.assertEqual(lines[1]["uda_sml"], x.uda_sml(rec, self.index, "FACT_SALES"))
 
     def test_skips_calc_groups_helpers_and_unknown(self):
         text = self.uda(["Fiscal Year", "Time Relative", "Nope"], ["Net Sales", "__SUMATTRNAME__x", "Ghost"])

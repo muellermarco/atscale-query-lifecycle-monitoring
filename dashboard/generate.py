@@ -398,16 +398,20 @@ y += 8
 
 SUG_FIELDS = ["start", "query_id", "catalog", "model", "duration_ms", "miss_reason", "dataset", "grain", "score",
               "uda_sml"]
-EXP_Q = ('$log_selector |= "atscale_query" | json | event="atscale_query" | env=~"$env" | query_type=~"$query_type" '
-         '| catalog=~"$catalog" | model=~"$model" | duration_ms >= $min_runtime_ms | duration_ms <= $max_runtime_ms')
+# One exporter line per query and fact dataset carries that dataset's UDA; join it to the engine candidates
+# on query ID + fact dataset, so each row shows only its own UDA.
+JOIN_KEY = ' | label_format join_key=`{{ .query_id }}/{{ .dataset }}`'
+EXP_Q = ('$log_selector |= "atscale_uda_suggestion" | json | event="atscale_uda_suggestion" | env=~"$env" '
+         '| query_type=~"$query_type" | catalog=~"$catalog" | model=~"$model" '
+         '| duration_ms >= $min_runtime_ms | duration_ms <= $max_runtime_ms' + JOIN_KEY)
 # Only candidates below the threshold need a user-defined aggregate.
-ENG_SUG = ENG + ' | score < $compression_threshold'
+ENG_SUG = ENG + ' | score < $compression_threshold' + JOIN_KEY + ' | drop query_id, dataset'
 panels.append({
     "type": "table", "title": "Aggregate suggestions for slow queries", "id": nid(), "datasource": LOKI,
     "description": ("Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine "
-                    "proposed for them that are below the Compression threshold. AtScale does not create those. UDA (SML) holds "
-                    "an aggregates: block for the model file: one user-defined aggregate per fact dataset, at the grain of the "
-                    "query (its attributes), with the base metrics behind its measures; comments name what was left out. Candidates that meet the threshold are in Aggregate candidates per query. Check before you create it: the query's attributes must be coarser than the rejected grain "
+                    "proposed for them that are below the Compression threshold. AtScale does not create those. One row per query "
+                    "and fact dataset; UDA (SML) holds the aggregates: block for that fact dataset, at the grain of the query "
+                    "(its attributes), with the base metrics behind its measures; comments name what was left out. Candidates that meet the threshold are in Aggregate candidates per query. Check before you create it: the query's attributes must be coarser than the rejected grain "
                     "(for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics "
                     "they use. Queries that used an aggregate have no candidates and do not appear. " + SCORE_HELP),
     "gridPos": {"h": 12, "w": 24, "x": 0, "y": y},
@@ -415,7 +419,7 @@ panels.append({
                 {"datasource": LOKI, "refId": "B", "queryType": "range", "maxLines": 1000, "expr": ENG_SUG}],
     "transformations": [
         {"id": "extractFields", "options": {"source": "labels", "format": "auto", "replace": False, "keepTime": False}},
-        {"id": "joinByField", "options": {"byField": "query_id", "mode": "inner"}},
+        {"id": "joinByField", "options": {"byField": "join_key", "mode": "inner"}},
         {"id": "filterFieldsByName", "options": {"include": {"pattern": "^(%s)$" % "|".join(SUG_FIELDS)}}},
         {"id": "convertFieldType", "options": {"conversions": [{"targetField": "duration_ms", "destinationType": "number"},
                                                                {"targetField": "score", "destinationType": "number"}]}},

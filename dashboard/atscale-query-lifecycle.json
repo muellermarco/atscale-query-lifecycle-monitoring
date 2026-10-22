@@ -2750,7 +2750,7 @@
         "type": "loki",
         "uid": "${loki}"
       },
-      "description": "Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine proposed for them that are below the Compression threshold. AtScale does not create those. UDA (SML) holds an aggregates: block for the model file: one user-defined aggregate per fact dataset, at the grain of the query (its attributes), with the base metrics behind its measures; comments name what was left out. Candidates that meet the threshold are in Aggregate candidates per query. Check before you create it: the query's attributes must be coarser than the rejected grain (for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics they use. Queries that used an aggregate have no candidates and do not appear. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Loki (Engine log selector at the top); the engine log has no catalog or model, so only the time range applies.",
+      "description": "Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine proposed for them that are below the Compression threshold. AtScale does not create those. One row per query and fact dataset; UDA (SML) holds the aggregates: block for that fact dataset, at the grain of the query (its attributes), with the base metrics behind its measures; comments name what was left out. Candidates that meet the threshold are in Aggregate candidates per query. Check before you create it: the query's attributes must be coarser than the rejected grain (for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics they use. Queries that used an aggregate have no candidates and do not appear. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Loki (Engine log selector at the top); the engine log has no catalog or model, so only the time range applies.",
       "gridPos": {
         "h": 12,
         "w": 24,
@@ -2766,7 +2766,7 @@
           "refId": "A",
           "queryType": "range",
           "maxLines": 1000,
-          "expr": "$log_selector |= \"atscale_query\" | json | event=\"atscale_query\" | env=~\"$env\" | query_type=~\"$query_type\" | catalog=~\"$catalog\" | model=~\"$model\" | duration_ms >= $min_runtime_ms | duration_ms <= $max_runtime_ms"
+          "expr": "$log_selector |= \"atscale_uda_suggestion\" | json | event=\"atscale_uda_suggestion\" | env=~\"$env\" | query_type=~\"$query_type\" | catalog=~\"$catalog\" | model=~\"$model\" | duration_ms >= $min_runtime_ms | duration_ms <= $max_runtime_ms | label_format join_key=`{{ .query_id }}/{{ .dataset }}`"
         },
         {
           "datasource": {
@@ -2776,7 +2776,7 @@
           "refId": "B",
           "queryType": "range",
           "maxLines": 1000,
-          "expr": "$engine_log_selector |= \"R050 candidate\" | regexp `R050 candidate (?P<candidate>\\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\\S+) and (?P<grain>.*?) is ` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | label_format grain=`{{ if .grain }}{{ .grain | replace \" ,\" \", \" }}{{ else }}(no keys){{ end }}` | score >= $min_score | score <= $max_score | score < $compression_threshold"
+          "expr": "$engine_log_selector |= \"R050 candidate\" | regexp `R050 candidate (?P<candidate>\\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\\S+) and (?P<grain>.*?) is ` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | label_format grain=`{{ if .grain }}{{ .grain | replace \" ,\" \", \" }}{{ else }}(no keys){{ end }}` | score >= $min_score | score <= $max_score | score < $compression_threshold | label_format join_key=`{{ .query_id }}/{{ .dataset }}` | drop query_id, dataset"
         }
       ],
       "transformations": [
@@ -2792,7 +2792,7 @@
         {
           "id": "joinByField",
           "options": {
-            "byField": "query_id",
+            "byField": "join_key",
             "mode": "inner"
           }
         },

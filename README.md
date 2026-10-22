@@ -242,7 +242,7 @@ The row "Aggregate candidates and compression score" shows these scores. It read
 Two panels combine both logs, joined on the query ID:
 
 - "Unoptimized queries by runtime and compression score" counts queries without aggregate or cache by runtime range (rows) and by the compression score of their candidates (columns). A bar chart next to it shows the same counts. Narrow them with `Min runtime (ms)`, `Max runtime (ms)`, `Min compression score` and `Max compression score`.
-- "Aggregate suggestions for slow queries" lists the queries in the runtime range with their candidates below the threshold. The column UDA (SML) holds an `aggregates:` block that you can add to the model file.
+- "Aggregate suggestions for slow queries" lists the queries in the runtime range with their candidates below the threshold, one row per query and fact dataset. The column UDA (SML) holds the `aggregates:` block for that fact dataset, which you can add to the model file. The exporter writes these blocks as separate log lines (`"event": "atscale_uda_suggestion"`, one per query and fact dataset).
 
 The exporter builds that block from the catalog export (`/v1/catalogs/{id}/export`, read at most once an hour per catalog):
 
@@ -251,11 +251,11 @@ The exporter builds that block from the catalog export (`/v1/catalogs/{id}/expor
 - Calculation groups and engine-internal measures are left out, with a comment.
 - A query without measures that still reached the warehouse reads a fact dataset to find which attribute combinations exist. SML needs at least one metric, so the block has one aggregate per fact dataset that relates to all the attributes, each with one metric of that dataset. Keep the one on the fact dataset that the dashboard shows for the query.
 
-Example for Store Sales Index to Chain by Franchisee, Fiscal Quarter and Store Format:
+Example for Store Sales Index to Chain by Franchisee, Fiscal Quarter and Store Format. The two aggregates appear in two rows, one per fact dataset; here they are shown together:
 
 ```yaml
-# left out Franchisee for FACT_CHAIN_DAY: Store Dimension has no relationship to it
-# left out Store Format for FACT_CHAIN_DAY: Store Dimension has no relationship to it
+# left out Franchisee: Store Dimension has no relationship to FACT_CHAIN_DAY
+# left out Store Format: Store Dimension has no relationship to FACT_CHAIN_DAY
 aggregates:
   - unique_name: uda_2ca5580d
     label: "Suggested on FACT_CHAIN_DAY: Fiscal Quarter"
