@@ -104,6 +104,67 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(x.parse_ms(None), 0)
 
 
+# Minimal catalog export: Calendar and Store dimensions, FACT_SALES (both keys) and FACT_CHAIN
+# (calendar key only, single-element collections written as bare objects like the real export).
+EXPORT = {
+    "attributes": {"keyed-attribute": [
+        {"id": "a-year", "name": "Fiscal Year", "key-ref": "k-day"},
+        {"id": "a-store", "name": "Store", "key-ref": "k-store"},
+        {"id": "a-brand", "name": "Brand", "key-ref": "k-brand"}]},
+    "data-sets": {"data-set": [{"id": "ds-sales", "name": "FACT_SALES"}, {"id": "ds-chain", "name": "FACT_CHAIN"}]},
+    "dimensions": {"dimension": [
+        {"name": "Calendar", "hierarchy": {"level": {"primary-attribute": "a-year"}},
+         "calculation-group": {"name": "Time Relative"}},
+        {"name": "Store Dim", "hierarchy": [{"level": {"primary-attribute": "a-store",
+                                                       "keyed-attribute-ref": [{"attribute-id": "a-brand"}]}}]}]},
+    "calculated-members": {"calculated-member": {"name": "Index", "expression": "[Measures].[Net Sales] / [Measures].[Chain Sales]"}},
+    "cubes": {"cube": {"name": "sales_model", "properties": {"caption": "Sales Model"},
+        "attributes": {"attribute": [{"id": "m-net", "name": "Net Sales"}, {"id": "m-chain", "name": "Chain Sales"}]},
+        "data-sets": {"data-set-ref": [
+            {"id": "ds-sales", "logical": {"key-ref": [{"id": "k-day"}, {"id": "k-store"}], "attribute-ref": {"id": "m-net"}}},
+            {"id": "ds-chain", "logical": {"key-ref": {"id": "k-day"}, "attribute-ref": {"id": "m-chain"}}}]}}},
+}
+
+
+class UdaTests(unittest.TestCase):
+    def setUp(self):
+        self.index = x.catalog_index(EXPORT)["sales_model"]
+
+    def uda(self, attributes, measures):
+        return x.uda_sml({"modelName": "sales_model", "attributes": attributes, "measures": measures}, self.index)
+
+    def test_index(self):
+        self.assertEqual(self.index["attr_dims"]["Brand"], ["Store Dim"])
+        self.assertEqual(self.index["metric_dataset"], {"Net Sales": "FACT_SALES", "Chain Sales": "FACT_CHAIN"})
+        both = x.catalog_index(EXPORT)
+        self.assertIs(both["Sales Model"], both["sales_model"])   # caption and name lead to the same index
+
+    def test_calculation_split_per_fact_dataset(self):
+        text = self.uda(["Fiscal Year", "Store"], ["Index"])
+        self.assertIn("# left out Store for FACT_CHAIN: Store Dim has no relationship to it", text)
+        self.assertEqual(text.count("  - unique_name: uda_"), 2)
+        self.assertIn("    label: \"Suggested on FACT_CHAIN: Fiscal Year\"", text)
+        self.assertIn("      - name: Store\n        dimension: Store Dim\n    metrics:\n      - Net Sales", text)
+
+    def test_skips_calc_groups_helpers_and_unknown(self):
+        text = self.uda(["Fiscal Year", "Time Relative", "Nope"], ["Net Sales", "__SUMATTRNAME__x", "Ghost"])
+        self.assertIn("# skipped Time Relative: calculation group", text)
+        self.assertIn("# skipped Nope: not found as a dimension attribute in the model", text)
+        self.assertIn("# skipped Ghost: no base metric found in the model", text)
+        self.assertNotIn("__SUMATTRNAME__", text)
+
+    def test_dimension_only_query(self):
+        self.assertTrue(self.uda(["Store"], []).startswith("# no UDA"))
+
+    def test_same_footprint_same_name(self):
+        self.assertEqual(self.uda(["Store"], ["Net Sales"]), self.uda(["Store"], ["Net Sales"]))
+
+    def test_yaml_quoting(self):
+        self.assertEqual(x.yaml_str("Net Sales"), "Net Sales")
+        self.assertEqual(x.yaml_str("Sales: total"), '"Sales: total"')
+        self.assertEqual(x.yaml_str("#1 Store"), '"#1 Store"')
+
+
 class PollerTests(unittest.TestCase):
     def make_poller(self, pages):
         cfg = {"query_path": "/v1/query", "aggregates_path": "/v1/aggregates", "lookback_s": 1800,

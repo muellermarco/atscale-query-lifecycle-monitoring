@@ -18,13 +18,18 @@ Inputs (environment variables):
                          private CA); certificate verification is always on
   AGGREGATES_PATH        aggregates path (default: QUERY_PATH with "query" replaced by
                          "aggregates", i.e. /v1/aggregates or /v1/public/aggregates)
+  CATALOGS_PATH          catalogs path for the catalog export (default: QUERY_PATH with "query"
+                         replaced by "catalogs"); used for the UDA suggestion
+  CATALOG_CACHE_MINUTES  how long a catalog export is reused (60)
   POLL_SECONDS (60), LOOKBACK_MINUTES (30), PAGE_SIZE (100, the API maximum), MAX_PAGES (20),
   HTTP_TIMEOUT_SECONDS (30), PORT (9101)
   QUERY_LOG              true (default) writes one JSON line per query to stdout
 Outputs: Prometheus text format on http://0.0.0.0:$PORT/metrics; with QUERY_LOG, one JSON
   line per query on stdout (event "atscale_query": queryId, catalog, model, attribute and
-  measure names, phase ms) for a log store such as Loki. User names and query text are
-  never written.
+  measure names, phase ms) for a log store such as Loki. For queries that reached the
+  warehouse without aggregate or cache it adds uda_sml: an SML "aggregates:" block with the
+  query's attributes (and their dimensions) and measures, to paste into the model file.
+  User names and query text are never written.
 Run: python3 exporter.py
 
 Each query gets a miss_reason: optimized (aggregate or cache used), system (AtScale's own
@@ -39,6 +44,7 @@ when the exporter starts are not counted, so a restart does not count them twice
 Run exactly one replica: two replicas would count every query twice.
 """
 import datetime
+import hashlib
 import json
 import logging
 import os
@@ -69,6 +75,8 @@ MAX_API_PAGE_SIZE = 100       # the AtScale API returns at most 101 rows and no 
 # An aggregate created from 5 s before the query start to 10 s after its end
 # counts as created for this query.
 AGG_WINDOW_BEFORE_MS, AGG_WINDOW_AFTER_MS = 5000, 10000
+ENGINE_HELPER_PREFIX = "__"   # internal measures such as __SUMATTRNAME__..., not part of the model
+MEASURE_REF = re.compile(r"\[Measures\]\.\[([^\]]+)\]", re.IGNORECASE)
 
 
 class Histogram:
@@ -229,7 +237,7 @@ def phase_durations(rec):
     return out, subquery_count
 
 
-def record(env, rec, created_ms=None):
+def record(env, rec, created_ms=None, model_index=None):
     """Observe one query record from the query history API."""
     phases, subquery_count = phase_durations(rec)
     labels = query_labels(env, rec, classify(rec, subquery_count, created_ms))
@@ -239,7 +247,10 @@ def record(env, rec, created_ms=None):
         PHASE_HIST.observe(labels + (phase,), seconds)
     SUBQ_HIST.observe(labels, subquery_count)
     if QUERY_LOG.isEnabledFor(logging.INFO):
-        QUERY_LOG.info(json.dumps(query_log_line(labels, rec, phases, subquery_count), sort_keys=True))
+        line = query_log_line(labels, rec, phases, subquery_count)
+        if model_index is not None and needs_aggregate_check(rec):
+            line["uda_sml"] = uda_sml(rec, model_index)
+        QUERY_LOG.info(json.dumps(line, sort_keys=True))
     return bool(phases)
 
 
@@ -257,6 +268,158 @@ def query_log_line(labels, rec, phases, subquery_count):
     return line
 
 
+def as_list(value):
+    """The catalog export writes single-element collections as bare objects and empty ones as ""."""
+    if isinstance(value, list):
+        return value
+    return [] if value in (None, "") else [value]
+
+
+def referenced_ids(node):
+    """All string values in a nested export structure (ids that point at attributes)."""
+    if isinstance(node, dict):
+        for value in node.values():
+            yield from referenced_ids(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from referenced_ids(value)
+    elif isinstance(node, str):
+        yield node
+
+
+def catalog_index(doc):
+    """{model name: index} from a catalog export. An index maps attributes to dimensions,
+    base metrics to their fact dataset, calculations to the measures they reference, and
+    dimensions and datasets to the key ids that relate them."""
+    keyed = {a["id"]: a for a in as_list((doc.get("attributes") or {}).get("keyed-attribute"))}
+    dataset_names = {d["id"]: d["name"] for d in as_list((doc.get("data-sets") or {}).get("data-set"))}
+    calcs = {c["name"]: MEASURE_REF.findall(c.get("expression") or "")
+             for c in as_list((doc.get("calculated-members") or {}).get("calculated-member"))}
+    shared_dims = as_list((doc.get("dimensions") or {}).get("dimension"))
+    out = {}
+    for cube in as_list((doc.get("cubes") or {}).get("cube")):
+        cube_keyed = dict(keyed, **{a["id"]: a for a in as_list((cube.get("attributes") or {}).get("keyed-attribute"))})
+        index = dimension_index(shared_dims + as_list((cube.get("dimensions") or {}).get("dimension")), cube_keyed)
+        index.update(dataset_index(cube, dataset_names))
+        index["calcs"] = calcs
+        out[cube["name"]] = index
+        caption = (cube.get("properties") or {}).get("caption")
+        if caption:
+            out.setdefault(caption, index)
+    return out
+
+
+def dimension_index(dims, keyed):
+    """attr_dims {attribute: [dimensions]}, dim_keys {dimension: key ids}, calc_groups {names}."""
+    attr_dims, dim_keys, calc_groups = {}, {}, set()
+    for dim in dims:
+        calc_groups.update(g.get("name") for g in as_list(dim.get("calculation-group")))
+        for ref in referenced_ids(as_list(dim.get("hierarchy"))):
+            attr = keyed.get(ref)
+            if not attr:
+                continue
+            dim_keys.setdefault(dim["name"], set()).add(attr.get("key-ref"))
+            dims_of_attr = attr_dims.setdefault(attr["name"], [])
+            if dim["name"] not in dims_of_attr:
+                dims_of_attr.append(dim["name"])
+    return {"attr_dims": attr_dims, "dim_keys": dim_keys, "calc_groups": calc_groups}
+
+
+def dataset_index(cube, dataset_names):
+    """metric_dataset {base metric: fact dataset} and dataset_keys {fact dataset: key ids}."""
+    metric_ids = {a["id"]: a["name"] for a in as_list((cube.get("attributes") or {}).get("attribute"))}
+    metric_dataset, dataset_keys = {}, {}
+    for ref in as_list((cube.get("data-sets") or {}).get("data-set-ref")):
+        name = dataset_names.get(ref.get("id"), ref.get("id"))
+        logical = ref.get("logical") or {}
+        dataset_keys[name] = {k.get("id") for k in as_list(logical.get("key-ref"))}
+        for attr in as_list(logical.get("attribute-ref")):
+            if attr.get("id") in metric_ids:
+                metric_dataset[metric_ids[attr["id"]]] = name
+    return {"metric_dataset": metric_dataset, "dataset_keys": dataset_keys}
+
+
+def yaml_str(value):
+    """A YAML scalar: plain when safe, otherwise double-quoted."""
+    text = str(value)
+    if re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9 _./()%-]*[A-Za-z0-9_)%]|[A-Za-z0-9_]", text) and ": " not in text:
+        return text
+    return json.dumps(text)
+
+
+def base_metrics(measure, index, seen=None):
+    """The base metrics a measure uses: itself, or the metrics behind a calculation (recursive)."""
+    seen = set() if seen is None else seen
+    if measure in seen:
+        return set()
+    seen.add(measure)
+    if measure in index["metric_dataset"]:
+        return {measure}
+    out = set()
+    for ref in index["calcs"].get(measure, []):
+        out |= base_metrics(ref, index, seen)
+    return out
+
+
+def uda_sml(rec, index):
+    """SML "aggregates:" block for the query: one UDA per fact dataset with the base metrics the
+    query's measures use and the query's attributes related to that dataset; notes as comments."""
+    measures = sorted(m for m in rec.get("measures") or [] if not m.startswith(ENGINE_HELPER_PREFIX))
+    metrics, notes = set(), []
+    for measure in measures:
+        found = base_metrics(measure, index)
+        metrics |= found
+        if not found:
+            notes.append("# skipped %s: no base metric found in the model" % measure)
+    if not metrics:
+        return "\n".join(notes + ["# no UDA: the query has no measures, AtScale answers it from the dimension tables"])
+    attributes, attr_notes = uda_attributes(sorted(rec.get("attributes") or []), index)
+    by_dataset = {}
+    for metric in sorted(metrics):
+        by_dataset.setdefault(index["metric_dataset"][metric], []).append(metric)
+    lines = ["aggregates:"]
+    for dataset, dataset_metrics in sorted(by_dataset.items()):
+        related, unrelated = split_related(attributes, dataset, index)
+        attr_notes += ["# left out %s for %s: %s has no relationship to it" % (a, dataset, d) for a, d in unrelated]
+        lines += uda_entry(rec.get("modelName"), dataset, related, dataset_metrics)
+    return "\n".join(notes + attr_notes + lines)
+
+
+def split_related(attributes, dataset, index):
+    """Attributes whose dimension shares a key with the dataset, and the others."""
+    keys = index["dataset_keys"].get(dataset, set())
+    related = [(a, d) for a, d in attributes if index["dim_keys"].get(d, set()) & keys]
+    return related, [(a, d) for a, d in attributes if (a, d) not in related]
+
+
+def uda_entry(model, dataset, attributes, metrics):
+    """YAML lines of one aggregate in an SML model file."""
+    digest = hashlib.sha1(json.dumps([model, dataset, attributes, metrics]).encode()).hexdigest()[:8]
+    lines = ["  - unique_name: uda_%s" % digest,
+             "    label: %s" % yaml_str("Suggested on %s: %s" % (dataset, ", ".join(a for a, _ in attributes) or "grand total"))]
+    if attributes:
+        lines.append("    attributes:")
+        for attr, dim in attributes:
+            lines += ["      - name: %s" % yaml_str(attr), "        dimension: %s" % yaml_str(dim)]
+    return lines + ["    metrics:"] + ["      - %s" % yaml_str(m) for m in metrics]
+
+
+def uda_attributes(attrs, index):
+    """[(attribute, dimension)] for the UDA, plus comment lines for what was left out or is ambiguous."""
+    out, notes = [], []
+    for attr in attrs:
+        dims = index["attr_dims"].get(attr, [])
+        if attr in index["calc_groups"]:
+            notes.append("# skipped %s: calculation group" % attr)
+        elif not dims:
+            notes.append("# skipped %s: not found as a dimension attribute in the model" % attr)
+        else:
+            out.append((attr, dims[0]))
+            if len(dims) > 1:
+                notes.append("# check %s: also in %s" % (attr, ", ".join(dims[1:])))
+    return out, notes
+
+
 class InstancePoller:
     """Polls one AtScale instance and records each new query once."""
 
@@ -265,6 +428,7 @@ class InstancePoller:
         self.seen = {}          # queryId -> expiry epoch seconds
         self.warmed_up = False
         self.warned_no_events = False
+        self.catalogs = {}      # catalogId -> (expiry epoch seconds, {model name: index})
 
     def fetch(self):
         now = time.time()
@@ -326,13 +490,30 @@ class InstancePoller:
 
     def record_all(self, records):
         """Record new queries; returns how many had no phase events."""
-        models = {r.get("modelId") for r in records if needs_aggregate_check(r) and r.get("modelId")}
+        misses = [r for r in records if needs_aggregate_check(r)]
+        models = {r.get("modelId") for r in misses if r.get("modelId")}
         created = self.aggregate_creation_times(sorted(models)) if models else {}
+        indexes = {c: self.model_index(c) for c in {r.get("catalogId") for r in misses if r.get("catalogId")}}
         without_events = 0
         for rec in records:
             times = None if created is None else created.get(rec.get("modelId"), [])
-            without_events += 0 if record(self.env, rec, times) else 1
+            index = (indexes.get(rec.get("catalogId")) or {}).get(rec.get("modelName"))
+            without_events += 0 if record(self.env, rec, times, index) else 1
         return without_events
+
+    def model_index(self, catalog_id):
+        """{model name: index} from the catalog export, cached; {} if the export is unreadable."""
+        expiry, index = self.catalogs.get(catalog_id, (0, None))
+        if time.time() < expiry:
+            return index
+        try:
+            doc = self.get_json("%s/%s/export" % (self.cfg["catalogs_path"], urllib.parse.quote(catalog_id)))
+            index = catalog_index(doc)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            LOG.warning("%s: catalog export %s not readable, no UDA suggestion: %s", self.env, catalog_id, exc)
+            index = {}
+        self.catalogs[catalog_id] = (time.time() + self.cfg["catalog_cache_s"], index)
+        return index
 
     def check_fields(self, new, without_events):
         """Warn once if this AtScale version returns queries without phase events."""
@@ -398,6 +579,8 @@ def load_config():
         page_size = MAX_API_PAGE_SIZE
     return {"query_path": query_path,
             "aggregates_path": os.environ.get("AGGREGATES_PATH", re.sub(r"query$", "aggregates", query_path)),
+            "catalogs_path": os.environ.get("CATALOGS_PATH", re.sub(r"query$", "catalogs", query_path)),
+            "catalog_cache_s": int(os.environ.get("CATALOG_CACHE_MINUTES", "60")) * 60,
             "lookback_s": int(os.environ.get("LOOKBACK_MINUTES", "30")) * 60,
             "page_size": page_size,
             "max_pages": int(os.environ.get("MAX_PAGES", "20")),

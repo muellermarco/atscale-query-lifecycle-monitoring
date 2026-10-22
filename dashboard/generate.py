@@ -272,7 +272,8 @@ y += 12
 ENG = ('$engine_log_selector |= "R050 candidate" '
        r'| regexp `R050 candidate (?P<candidate>\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\S+) and (?P<grain>.*?) is ` '
        '| regexp `queryId=(?P<query_id>[0-9a-f-]+)` '
-       '| label_format grain=`{{ if .grain }}{{ .grain | replace " ," ", " }}{{ else }}(no keys){{ end }}`')
+       '| label_format grain=`{{ if .grain }}{{ .grain | replace " ," ", " }}{{ else }}(no keys){{ end }}` '
+       '| score >= $min_score | score <= $max_score')
 SCORE_HELP = ("Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it "
               "for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below "
               "aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Loki "
@@ -333,21 +334,79 @@ panels.append({
     "options": {"showHeader": True, "cellHeight": "sm"}})
 y += 10
 
+RUNTIME_BUCKETS = [(1000, "1. under 1 s"), (5000, "2. 1 to 5 s"), (10000, "3. 5 to 10 s"), (30000, "4. 10 to 30 s"),
+                   (None, "5. 30 s and more")]
+SCORE_BUCKETS = [(1, "under 1"), (3, "1 to 3"), (10, "3 to 10"), (100, "10 to 100"), (None, "100 and more")]
+
+def bucket_template(field, buckets):
+    """Loki template that maps a numeric label to a bucket name."""
+    parts = []
+    for i, (limit, name) in enumerate(buckets):
+        if limit is None:
+            parts.append("{{ else }}%s{{ end }}" % name)
+        else:
+            parts.append("{{ %s lt (float64 .%s) %s.0 }}%s" % ("if" if i == 0 else "else if", field, limit, name))
+    return "".join(parts)
+
+EXP_DIST = ('$log_selector |= "atscale_query" | json | event="atscale_query" | env=~"$env" | query_type=~"$query_type" '
+            '| catalog=~"$catalog" | model=~"$model" | optimization="none" | status="successful" '
+            '| duration_ms >= $min_runtime_ms | duration_ms <= $max_runtime_ms '
+            '| label_format runtime_bucket=`%s`' % bucket_template("duration_ms", RUNTIME_BUCKETS))
+ENG_DIST = ENG + ' | label_format score_bucket=`%s`' % bucket_template("score", SCORE_BUCKETS)
+MATRIX = "runtime_bucket\\score_bucket"
+DIST_TRANSFORMS = [
+    {"id": "extractFields", "options": {"source": "labels", "format": "auto", "replace": False, "keepTime": False}},
+    {"id": "joinByField", "options": {"byField": "query_id", "mode": "inner"}},
+    {"id": "filterFieldsByName", "options": {"include": {"pattern": "^(query_id|runtime_bucket|score_bucket)$"}}},
+    {"id": "groupBy", "options": {"fields": {"runtime_bucket": {"operation": "groupby", "aggregations": []},
+                                             "score_bucket": {"operation": "groupby", "aggregations": []},
+                                             "query_id": {"operation": "aggregate", "aggregations": ["distinctCount"]}}}},
+    {"id": "groupingToMatrix", "options": {"columnField": "score_bucket", "rowField": "runtime_bucket",
+                                           "valueField": "query_id (distinctCount)", "emptyValue": "zero"}},
+    {"id": "organize", "options": {"indexByName": dict({MATRIX: 0}, **{name: i + 1 for i, (_, name) in enumerate(SCORE_BUCKETS)}),
+                                   "renameByName": {MATRIX: "Runtime \\ compression score"}}},
+    {"id": "sortBy", "options": {"sort": [{"field": "Runtime \\ compression score"}]}}]
+DIST_HELP = ("Queries without aggregate or cache, counted by runtime (rows) and by the compression score of the aggregate "
+             "candidates the engine proposed for them (columns). A query with candidates in several score ranges counts "
+             "in each. Filters: Min/Max runtime (ms) and Min/Max compression score at the top. Needs both the exporter "
+             "log and the AtScale engine log in Loki. " + SCORE_HELP)
+panels.append({
+    "type": "table", "title": "Unoptimized queries by runtime and compression score", "id": nid(), "datasource": LOKI,
+    "description": DIST_HELP, "gridPos": {"h": 8, "w": 12, "x": 0, "y": y},
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 5000, "expr": EXP_DIST},
+                {"datasource": LOKI, "refId": "B", "queryType": "range", "maxLines": 5000, "expr": ENG_DIST}],
+    "transformations": DIST_TRANSFORMS,
+    "fieldConfig": {"defaults": {"decimals": 0, "custom": {"align": "center", "cellOptions": {"type": "color-background", "mode": "gradient"}},
+                                 "color": {"mode": "continuous-BlYlRd"}},
+                    "overrides": [{"matcher": {"id": "byName", "options": "Runtime \\ compression score"},
+                                   "properties": [{"id": "custom.cellOptions", "value": {"type": "auto"}}, {"id": "custom.align", "value": "left"}]}]},
+    "options": {"showHeader": True, "cellHeight": "sm"}})
+panels.append({
+    "type": "barchart", "title": "Unoptimized queries by runtime, stacked by compression score", "id": nid(), "datasource": LOKI,
+    "description": DIST_HELP, "gridPos": {"h": 8, "w": 12, "x": 12, "y": y},
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 5000, "expr": EXP_DIST},
+                {"datasource": LOKI, "refId": "B", "queryType": "range", "maxLines": 5000, "expr": ENG_DIST}],
+    "transformations": DIST_TRANSFORMS,
+    "options": {"orientation": "horizontal", "stacking": "normal", "showValue": "never", "groupWidth": 0.7, "barWidth": 0.9,
+                "legend": {"displayMode": "list", "placement": "bottom", "showLegend": True}, "tooltip": {"mode": "multi"}},
+    "fieldConfig": {"defaults": {"decimals": 0, "unit": "short", "color": {"mode": "palette-classic"}}, "overrides": []}})
+y += 8
+
 SUG_FIELDS = ["start", "query_id", "catalog", "model", "duration_ms", "miss_reason", "dataset", "grain", "score",
-              "suggestion", "attributes", "measures"]
+              "suggestion", "uda_sml"]
 EXP_Q = ('$log_selector |= "atscale_query" | json | event="atscale_query" | env=~"$env" | query_type=~"$query_type" '
-         '| catalog=~"$catalog" | model=~"$model" | duration_ms >= $min_runtime_ms')
+         '| catalog=~"$catalog" | model=~"$model" | duration_ms >= $min_runtime_ms | duration_ms <= $max_runtime_ms')
 # Only candidates below the threshold need a user-defined aggregate. The suggestion sentence needs fields from
 # both logs; Grafana cannot join strings, so the Suggestion cell is a data link whose title fills them in per row.
 ENG_SUG = ENG + ' | score < $compression_threshold | label_format suggestion=`{{ .dataset }}`'
-SUGGESTION_TEXT = ("Create a user-defined aggregate on ${__data.fields.dataset} with the attributes "
-                   "${__data.fields.attributes} and the measures ${__data.fields.measures}")
+SUGGESTION_TEXT = ("AtScale rejected the aggregate on ${__data.fields.dataset} at ${__data.fields.grain}. "
+                   "Add the user-defined aggregates in UDA (SML) to the model file")
 panels.append({
     "type": "table", "title": "Aggregate suggestions for slow queries", "id": nid(), "datasource": LOKI,
     "description": ("Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine "
-                    "proposed for them that are below the Compression threshold. AtScale does not create those; the "
-                    "suggestion is a user-defined aggregate on that fact dataset at the grain of the query (its attributes) with "
-                    "its measures. Candidates that meet the threshold are in Aggregate candidates per query. Check before you create it: the query's attributes must be coarser than the rejected grain "
+                    "proposed for them that are below the Compression threshold. AtScale does not create those. UDA (SML) holds "
+                    "an aggregates: block for the model file: one user-defined aggregate per fact dataset, at the grain of the "
+                    "query (its attributes), with the base metrics behind its measures; comments name what was left out. Candidates that meet the threshold are in Aggregate candidates per query. Check before you create it: the query's attributes must be coarser than the rejected grain "
                     "(for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics "
                     "they use. Queries that used an aggregate have no candidates and do not appear. " + SCORE_HELP),
     "gridPos": {"h": 12, "w": 24, "x": 0, "y": y},
@@ -369,7 +428,7 @@ panels.append({
                                        "renameByName": {"start": "Start (UTC)", "query_id": "Query ID", "catalog": "Catalog", "model": "Model",
                                                         "duration_ms (max)": "Runtime", "miss_reason": "Miss reason", "dataset": "Fact dataset",
                                                         "grain": "Candidate grain", "score (min)": "Compression score", "suggestion": "Suggestion",
-                                                        "attributes": "UDA attributes (query grain)", "measures": "UDA measures"}}},
+                                                        "uda_sml": "UDA (SML)"}}},
         {"id": "sortBy", "options": {"sort": [{"field": "Runtime", "desc": True}]}}],
     "fieldConfig": {"defaults": {"custom": {"align": "auto", "filterable": True}},
                     "overrides": [
@@ -382,8 +441,9 @@ panels.append({
                             {"id": "custom.minWidth", "value": 420},
                             {"id": "custom.cellOptions", "value": {"type": "data-links"}},
                             {"id": "links", "value": [{"title": SUGGESTION_TEXT, "url": "#"}]}]},
-                        {"matcher": {"id": "byName", "options": "UDA attributes (query grain)"}, "properties": [{"id": "custom.minWidth", "value": 220}, {"id": "custom.inspect", "value": True}]},
-                        {"matcher": {"id": "byName", "options": "UDA measures"}, "properties": [{"id": "custom.minWidth", "value": 260}, {"id": "custom.inspect", "value": True}]}]},
+                        {"matcher": {"id": "byName", "options": "UDA (SML)"}, "properties": [
+                            {"id": "custom.minWidth", "value": 460}, {"id": "custom.inspect", "value": True},
+                            {"id": "custom.cellOptions", "value": {"type": "auto", "wrapText": True}}]}]},
     "options": {"showHeader": True, "cellHeight": "sm"}})
 y += 12
 
@@ -428,6 +488,12 @@ dash = {
          "current": {"text": "3", "value": "3"}, "hide": 0},
         {"name": "min_runtime_ms", "label": "Min runtime (ms)", "type": "textbox", "query": "1000",
          "current": {"text": "1000", "value": "1000"}, "hide": 0},
+        {"name": "max_runtime_ms", "label": "Max runtime (ms)", "type": "textbox", "query": "3600000",
+         "current": {"text": "3600000", "value": "3600000"}, "hide": 0},
+        {"name": "min_score", "label": "Min compression score", "type": "textbox", "query": "0",
+         "current": {"text": "0", "value": "0"}, "hide": 0},
+        {"name": "max_score", "label": "Max compression score", "type": "textbox", "query": "1000000",
+         "current": {"text": "1000000", "value": "1000000"}, "hide": 0},
         {"name": "log_selector", "label": "Log selector", "type": "textbox", "query": '{container="exporter"}',
          "current": {"text": '{container="exporter"}', "value": '{container="exporter"}'}, "hide": 0},
         var("env", "Instance", 'label_values(%s, env)' % base, multi=False, include_all=False),

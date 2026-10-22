@@ -67,7 +67,7 @@ The phases come from AtScale. The exporter splits Outbound into two parts, becau
 The exporter calls the AtScale API with a bearer token. Use a dedicated service user, not a personal account.
 
 1. Create an AtScale user for the exporter, for example `svc-query-monitoring`.
-2. Give the user access to the query history and the aggregates of the catalogs you want to monitor.
+2. Give the user read access to the query history, the aggregates and the catalogs you want to monitor.
 3. Log in to Design Center as that user.
 4. Open the account menu and create an API token.
 5. Store the token in your secret store. Do not commit it.
@@ -220,11 +220,52 @@ The row "Aggregate candidates and compression score" shows these scores. It read
 
    Result: "Aggregate candidates by dataset and grain" lists each fact dataset and aggregate grain with its score. "Below threshold" counts the candidates that AtScale did not create because of the threshold.
 
-The table "Aggregate suggestions for slow queries" combines both logs. It lists queries that ran at least `Min runtime (ms)`, joined on the query ID with the aggregate candidates below the threshold that the engine proposed for them. The Suggestion column names the fact dataset, the attributes and the measures, for example "Create a user-defined aggregate on FACT_STORE_SALES_DAY with the attributes Fiscal Quarter, Store and the measures Net Sales". Candidates that meet the threshold are in "Aggregate candidates per query". Treat the suggestion as a starting point:
+Two panels combine both logs, joined on the query ID:
 
-- The attributes of the query must be coarser than the rejected grain, for example Fiscal Quarter instead of Day. Otherwise the aggregate has the same low compression.
-- Calculated measures cannot go into an aggregate. Replace them with the base metrics they use.
-- Queries that used an aggregate have no candidates and do not appear in the table.
+- "Unoptimized queries by runtime and compression score" counts queries without aggregate or cache by runtime range (rows) and by the compression score of their candidates (columns). A bar chart next to it shows the same counts. Narrow them with `Min runtime (ms)`, `Max runtime (ms)`, `Min compression score` and `Max compression score`.
+- "Aggregate suggestions for slow queries" lists the queries in the runtime range with their candidates below the threshold. The column UDA (SML) holds an `aggregates:` block that you can add to the model file.
+
+The exporter builds that block from the catalog export (`/v1/catalogs/{id}/export`, read at most once an hour per catalog):
+
+- One user-defined aggregate per fact dataset that the query's measures use. A calculation is replaced by the base metrics it references, so a ratio of two fact datasets gives two aggregates.
+- The query's attributes with their dimension. An attribute whose dimension has no relationship to the fact dataset is left out of that aggregate, with a comment.
+- Calculation groups and engine-internal measures are left out, with a comment.
+
+Example for Store Sales Index to Chain by Franchisee, Fiscal Quarter and Store Format:
+
+```yaml
+# left out Franchisee for FACT_CHAIN_DAY: Store Dimension has no relationship to it
+# left out Store Format for FACT_CHAIN_DAY: Store Dimension has no relationship to it
+aggregates:
+  - unique_name: uda_2ca5580d
+    label: "Suggested on FACT_CHAIN_DAY: Fiscal Quarter"
+    attributes:
+      - name: Fiscal Quarter
+        dimension: Retail Calendar Dimension
+    metrics:
+      - Chain Net Sales
+      - Chain Store Days
+  - unique_name: uda_505357d0
+    label: "Suggested on FACT_STORE_SALES_DAY: Fiscal Quarter, Franchisee, Store Format"
+    attributes:
+      - name: Fiscal Quarter
+        dimension: Retail Calendar Dimension
+      - name: Franchisee
+        dimension: Store Dimension
+      - name: Store Format
+        dimension: Store Dimension
+    metrics:
+      - Net Sales
+      - Store Days Traded
+```
+
+Before you add a suggestion to the model:
+
+1. Check that the attributes are coarser than the rejected grain, for example Fiscal Quarter instead of Day. Otherwise the aggregate has the same low compression.
+2. If the model file already has an `aggregates:` key, add only the list items.
+3. Run `sml-cli validate` on the repository.
+
+Queries that used an aggregate have no candidates and do not appear in these panels.
 
 The engine log has no catalog or model name, so only the time range filters the candidate panels. The panels depend on the text of an engine log message (rule `R050`), which can change between AtScale releases.
 
@@ -245,6 +286,8 @@ Environment variables of the exporter. The Helm chart sets them from `values.yam
 | `HTTP_TIMEOUT_SECONDS` | `30` | Timeout per API call |
 | `PORT` | `9101` | Port of `/metrics` |
 | `QUERY_LOG` | `true` | Write one JSON line per query to standard output, for drill-down in a log store |
+| `CATALOGS_PATH` | `QUERY_PATH` with `query` replaced by `catalogs` | Path of the catalog API, used for the UDA suggestion |
+| `CATALOG_CACHE_MINUTES` | `60` | How long the exporter reuses a catalog export |
 
 ## Metrics
 
