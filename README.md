@@ -65,13 +65,31 @@ The phases come from AtScale. The exporter splits Outbound into two parts, becau
 
 ## Create the API token
 
-The exporter calls the AtScale API with a bearer token. Use a dedicated service user, not a personal account.
+The exporter calls the AtScale API with a bearer token. The token has the permissions of the user who created it, so use a dedicated service user, not a personal account.
 
-1. Create an AtScale user for the exporter, for example `svc-query-monitoring`.
-2. Give the user read access to the query history, the aggregates and the catalogs you want to monitor.
-3. Log in to Design Center as that user.
-4. Open the account menu and create an API token.
-5. Store the token in your secret store. Do not commit it.
+The service user needs these permissions:
+
+| Permission | Where | Why |
+|---|---|---|
+| Roles `queries_view`, `aggregates_view` and `repository_project_read` | User or group roles | Read the query history, the aggregates and the catalog export |
+| Discover on every model you want to monitor | Security settings of each model | AtScale shows a query or an aggregate only for models the user can access. Discover lets the user see metadata without querying data |
+| Data warehouse access on every connection those models use | Permissions of each data warehouse connection | AtScale hides a model if the user cannot access all of its connections |
+
+If a model or a connection is missing, the exporter gets no error. Its queries and aggregates are left out, and the catalog export returns HTTP 403. Do not use a superuser: it sees everything but can also change licences and settings.
+
+Put the permissions on a group, for example `atscale-query-monitoring`, and make the service user a member. When you add a model, add it to the group.
+
+The query history that this token can read includes the user name of each query. The exporter does not write user names to its metrics or its log.
+
+1. Create a group `atscale-query-monitoring` with the permissions in the table.
+2. Create an AtScale user for the exporter, for example `svc-query-monitoring`.
+3. Add the user to the group.
+4. Log in to Design Center as that user.
+5. Open the account menu and create an API token.
+6. Store the token in your secret store. Do not commit it.
+7. Run `curl -s -H "Authorization: Bearer $TOKEN" https://atscale.example.com/v1/catalogs`.
+
+   Result: the list contains every catalog you want to monitor.
 
 ## Build the exporter image
 
