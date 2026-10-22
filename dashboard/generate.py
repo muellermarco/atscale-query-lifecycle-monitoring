@@ -319,7 +319,7 @@ panels.append({
     "gridPos": {"h": 10, "w": 24, "x": 0, "y": y},
     "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 1000, "expr": ENG}],
     "transformations": [
-        {"id": "extractFields", "options": {"source": "labels", "format": "auto", "replace": False, "keepTime": True}},
+        {"id": "extractFields", "options": {"source": "labels", "format": "auto", "replace": False, "keepTime": False}},
         {"id": "filterFieldsByName", "options": {"include": {"names": CAND_FIELDS}}},
         {"id": "convertFieldType", "options": {"conversions": [{"targetField": "score", "destinationType": "number"}]}},
         {"id": "organize", "options": {"indexByName": {n: i for i, n in enumerate(CAND_FIELDS)},

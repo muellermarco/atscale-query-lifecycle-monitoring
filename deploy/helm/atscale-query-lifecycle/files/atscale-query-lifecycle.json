@@ -2311,7 +2311,7 @@
             "source": "labels",
             "format": "auto",
             "replace": false,
-            "keepTime": true
+            "keepTime": false
           }
         },
         {
