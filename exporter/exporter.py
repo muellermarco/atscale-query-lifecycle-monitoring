@@ -24,7 +24,7 @@ Inputs (environment variables):
   POLL_SECONDS (60), LOOKBACK_MINUTES (30), PAGE_SIZE (100, the API maximum), MAX_PAGES (20),
   HTTP_TIMEOUT_SECONDS (30), PORT (9101)
   QUERY_LOG              true (default) writes one JSON line per query to stdout
-Outputs: Prometheus text format on http://0.0.0.0:$PORT/metrics; with QUERY_LOG, one JSON
+Outputs: Prometheus text format on http://0.0.0.0:$PORT/metrics (health check: /healthz); with QUERY_LOG, one JSON
   line per query on stdout (event "atscale_query": queryId, catalog, model, attribute and
   measure names, phase ms) for a log store such as Loki. For queries that reached the
   warehouse without aggregate or cache it adds uda_sml: an SML "aggregates:" block with the
@@ -551,16 +551,23 @@ def poll_forever(pollers, poll_s):
 
 class MetricsHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path not in ("/metrics", "/"):
+        if self.path == "/healthz":     # for liveness/readiness probes; /metrics is large and slow
+            self.send_body(b"ok\n")
+        elif self.path in ("/metrics", "/"):
+            lines = QUERY_HIST.render() + PHASE_HIST.render() + SUBQ_HIST.render() + SELF.render()
+            self.send_body(("\n".join(lines) + "\n").encode(), "text/plain; version=0.0.4")
+        else:
             self.send_error(404)
-            return
-        lines = QUERY_HIST.render() + PHASE_HIST.render() + SUBQ_HIST.render() + SELF.render()
-        body = ("\n".join(lines) + "\n").encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain; version=0.0.4")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+
+    def send_body(self, body, content_type="text/plain"):
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass   # the client closed the connection early; nothing to do
 
     def log_message(self, *args):
         pass

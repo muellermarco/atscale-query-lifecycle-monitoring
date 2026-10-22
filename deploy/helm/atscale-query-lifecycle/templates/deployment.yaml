@@ -41,10 +41,10 @@ spec:
           ports:
             - {name: metrics, containerPort: 9101}
           readinessProbe:
-            httpGet: {path: /metrics, port: metrics}
+            httpGet: {path: /healthz, port: metrics}
             periodSeconds: 30
           livenessProbe:
-            httpGet: {path: /metrics, port: metrics}
+            httpGet: {path: /healthz, port: metrics}
             periodSeconds: 60
           resources: {{- toYaml .Values.resources | nindent 12 }}
           securityContext:

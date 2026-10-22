@@ -214,6 +214,20 @@ class PollerTests(unittest.TestCase):
             self.make_poller([{"message": "not found"}]).fetch()
 
 
+class HttpTests(unittest.TestCase):
+    def test_healthz_and_metrics(self):
+        import threading, urllib.request
+        server = x.ThreadingHTTPServer(("127.0.0.1", 0), x.MetricsHandler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        base = "http://127.0.0.1:%d" % server.server_address[1]
+        try:
+            self.assertEqual(urllib.request.urlopen(base + "/healthz", timeout=5).read(), b"ok\n")
+            self.assertIn(b"# TYPE atscale_query_duration_seconds histogram", urllib.request.urlopen(base + "/metrics", timeout=5).read())
+        finally:
+            server.shutdown()
+            server.server_close()
+
+
 class ConfigTests(unittest.TestCase):
     def test_token_variable_name(self):
         self.assertEqual(x.token_var("prod-eu"), "ATSCALE_TOKEN_PROD_EU")
