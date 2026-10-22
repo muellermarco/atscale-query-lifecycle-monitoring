@@ -153,8 +153,15 @@ class UdaTests(unittest.TestCase):
         self.assertIn("# skipped Ghost: no base metric found in the model", text)
         self.assertNotIn("__SUMATTRNAME__", text)
 
-    def test_dimension_only_query(self):
-        self.assertTrue(self.uda(["Store"], []).startswith("# no UDA"))
+    def test_dimension_only_query_gets_one_metric_per_related_dataset(self):
+        text = self.uda(["Fiscal Year", "Store"], [])
+        self.assertIn("# the query has no measures", text)
+        self.assertIn("Suggested on FACT_SALES: Fiscal Year, Store", text)
+        self.assertNotIn("FACT_CHAIN", text)          # Store Dim has no relationship to FACT_CHAIN
+        self.assertIn("    metrics:\n      - Net Sales", text)
+
+    def test_dimension_only_query_without_related_dataset(self):
+        self.assertTrue(self.uda([], []).startswith("# no UDA"))
 
     def test_same_footprint_same_name(self):
         self.assertEqual(self.uda(["Store"], ["Net Sales"]), self.uda(["Store"], ["Net Sales"]))

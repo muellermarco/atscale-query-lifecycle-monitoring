@@ -230,6 +230,7 @@ The exporter builds that block from the catalog export (`/v1/catalogs/{id}/expor
 - One user-defined aggregate per fact dataset that the query's measures use. A calculation is replaced by the base metrics it references, so a ratio of two fact datasets gives two aggregates.
 - The query's attributes with their dimension. An attribute whose dimension has no relationship to the fact dataset is left out of that aggregate, with a comment.
 - Calculation groups and engine-internal measures are left out, with a comment.
+- A query without measures that still reached the warehouse reads a fact dataset to find which attribute combinations exist. SML needs at least one metric, so the block has one aggregate per fact dataset that relates to all the attributes, each with one metric of that dataset. Keep the one on the fact dataset that the dashboard shows for the query.
 
 Example for Store Sales Index to Chain by Franchisee, Fiscal Quarter and Store Format:
 

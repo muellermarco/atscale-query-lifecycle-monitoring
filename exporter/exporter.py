@@ -371,9 +371,9 @@ def uda_sml(rec, index):
         metrics |= found
         if not found:
             notes.append("# skipped %s: no base metric found in the model" % measure)
-    if not metrics:
-        return "\n".join(notes + ["# no UDA: the query has no measures, AtScale answers it from the dimension tables"])
     attributes, attr_notes = uda_attributes(sorted(rec.get("attributes") or []), index)
+    if not metrics:
+        return "\n".join(notes + attr_notes + dimension_only_udas(rec.get("modelName"), attributes, index))
     by_dataset = {}
     for metric in sorted(metrics):
         by_dataset.setdefault(index["metric_dataset"][metric], []).append(metric)
@@ -383,6 +383,23 @@ def uda_sml(rec, index):
         attr_notes += ["# left out %s for %s: %s has no relationship to it" % (a, dataset, d) for a, d in unrelated]
         lines += uda_entry(rec.get("modelName"), dataset, related, dataset_metrics)
     return "\n".join(notes + attr_notes + lines)
+
+
+def dimension_only_udas(model, attributes, index):
+    """A query without measures that reached the warehouse reads a fact dataset to find the attribute
+    combinations that exist. SML needs at least one metric, so suggest one UDA per fact dataset that
+    relates to all the attributes, with one metric of that dataset."""
+    datasets = sorted(d for d in index["dataset_keys"] if attributes and not split_related(attributes, d, index)[1])
+    if not datasets:
+        return ["# no UDA: the query has no measures and no fact dataset relates to all its attributes"]
+    lines = ["# the query has no measures: AtScale reads a fact dataset to find which attribute combinations exist.",
+             "# A UDA needs at least one metric; keep the one on the Fact dataset the dashboard shows for this query.",
+             "aggregates:"]
+    for dataset in datasets:
+        metrics = sorted(m for m, d in index["metric_dataset"].items() if d == dataset)
+        if metrics:
+            lines += uda_entry(model, dataset, attributes, metrics[:1])
+    return lines
 
 
 def split_related(attributes, dataset, index):
