@@ -449,22 +449,56 @@ panels.append({
     "options": {"showHeader": True, "cellHeight": "sm"}})
 y += 12
 
-panels.append(row("Engine JDBC pools (engine OpenTelemetry metrics)", y)); y += 1
+QUEUE = ('$engine_log_selector |= "going into queue" '
+         '| regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` '
+         r'| regexp `is \[#(?P<position>\d+)\] in line` | regexp `service=(?P<service>[^,}]+)` '
+         '| label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}`')
+QUEUE_HELP = ("Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs "
+              "the request with its place in line: #1 means first in line, a higher place means the request waited behind "
+              "others. User queries share the connection with AtScale's own services (statistics, aggregate builds, "
+              "health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine "
+              "log selector at the top); only the time range applies.")
+panels.append(row("Warehouse connection queue (needs the AtScale engine log in Loki)", y)); y += 1
 panels.append({
-    "type": "timeseries", "title": "Average JDBC connection borrow time by pool", "id": nid(), "datasource": DS,
-    "description": "From the engine's Kamon/OpenTelemetry metrics on :9095. Most JDBC traffic is the AtScale system database, so use this only to check whether a pool wait explains a high outbound wait.",
-    "gridPos": {"h": 8, "w": 12, "x": 0, "y": y},
-    "targets": [tgt('sum by (env, jdbc_pool_name) (rate(jdbc_pool_borrow_time_seconds_sum{env=~"$env"}[$__rate_interval])) / sum by (env, jdbc_pool_name) (rate(jdbc_pool_borrow_time_seconds_count{env=~"$env"}[$__rate_interval]))', "{{env}} {{jdbc_pool_name}}")],
-    "fieldConfig": {"defaults": {"unit": "s", "custom": {"fillOpacity": 10}}, "overrides": []},
+    "type": "timeseries", "title": "Deepest place in the warehouse connection queue", "id": nid(), "datasource": LOKI,
+    "description": "Highest queue place per interval and connection. 1 means no request waited. " + QUEUE_HELP,
+    "gridPos": {"h": 8, "w": 12, "x": 0, "y": y}, "interval": "5m",
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "legendFormat": "{{connection}}",
+                 "expr": "max by (connection) (max_over_time(%s | unwrap position [$__interval]))" % QUEUE}],
+    "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "min": 1, "custom": {"drawStyle": "bars", "fillOpacity": 70},
+                                 "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": None}, {"color": "red", "value": 2}]},
+                                 "color": {"mode": "thresholds"}}, "overrides": []},
     "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}})
 panels.append({
-    "type": "timeseries", "title": "JDBC borrow timeouts and statements in flight", "id": nid(), "datasource": DS,
-    "description": "Borrow timeouts > 0 mean queries waited for a free connection and gave up.",
-    "gridPos": {"h": 8, "w": 12, "x": 12, "y": y},
-    "targets": [tgt('sum by (env) (increase(jdbc_pool_borrow_timeouts_total{env=~"$env"}[$__rate_interval]))', "{{env}} borrow timeouts", "A"),
-                tgt('sum by (env) (rate(jdbc_statements_in_flight_sum{env=~"$env"}[$__rate_interval])) / sum by (env) (rate(jdbc_statements_in_flight_count{env=~"$env"}[$__rate_interval]))', "{{env}} avg statements in flight", "B")],
-    "fieldConfig": {"defaults": {"unit": "short", "custom": {"fillOpacity": 10}}, "overrides": []},
-    "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}})
+    "type": "timeseries", "title": "Requests that queued behind others, by requester", "id": nid(), "datasource": LOKI,
+    "description": "Warehouse connection requests with a queue place above 1, per interval, by who asked (User query or an AtScale service). " + QUEUE_HELP,
+    "gridPos": {"h": 8, "w": 12, "x": 12, "y": y}, "interval": "5m",
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "legendFormat": "{{requester}}",
+                 "expr": "sum by (requester) (count_over_time(%s | position > 1 [$__interval]))" % QUEUE}],
+    "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "custom": {"drawStyle": "bars", "fillOpacity": 80, "stacking": {"mode": "normal"}}},
+                    "overrides": [{"matcher": {"id": "byName", "options": "User query"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#F2495C"}}]}]},
+    "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}}})
+y += 8
+panels.append({
+    "type": "table", "title": "Warehouse connection queue by connection and requester", "id": nid(), "datasource": LOKI,
+    "description": QUEUE_HELP,
+    "gridPos": {"h": 8, "w": 24, "x": 0, "y": y},
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "instant", "expr": "sum by (connection, requester) (count_over_time(%s [$__range]))" % QUEUE},
+                {"datasource": LOKI, "refId": "B", "queryType": "instant", "expr": "sum by (connection, requester) (count_over_time(%s | position > 1 [$__range]))" % QUEUE},
+                {"datasource": LOKI, "refId": "C", "queryType": "instant", "expr": "max by (connection, requester) (max_over_time(%s | unwrap position [$__range]))" % QUEUE}],
+    "transformations": [
+        {"id": "merge", "options": {}},
+        {"id": "organize", "options": {"excludeByName": {"Time": True},
+                                       "renameByName": {"connection": "Connection", "requester": "Requester", "Value #A": "Requests",
+                                                        "Value #B": "Queued behind others", "Value #C": "Deepest place"},
+                                       "indexByName": {"connection": 0, "requester": 1, "Value #A": 2, "Value #B": 3, "Value #C": 4}}},
+        {"id": "sortBy", "options": {"sort": [{"field": "Queued behind others", "desc": True}]}}],
+    "fieldConfig": {"defaults": {"decimals": 0, "custom": {"align": "auto"}},
+                    "overrides": [{"matcher": {"id": "byName", "options": "Deepest place"}, "properties": [
+                        {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                        {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "text", "value": None}, {"color": "red", "value": 2}]}}]}]},
+    "options": {"showHeader": True, "cellHeight": "sm"}})
+y += 8
 
 def var(name, label, query, multi=True, include_all=True, current=None):
     v = {"name": name, "label": label, "type": "query", "datasource": DS,

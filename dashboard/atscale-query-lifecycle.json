@@ -3047,7 +3047,7 @@
     },
     {
       "type": "row",
-      "title": "Engine JDBC pools (engine OpenTelemetry metrics)",
+      "title": "Warehouse connection queue (needs the AtScale engine log in Loki)",
       "id": 29,
       "collapsed": false,
       "gridPos": {
@@ -3060,36 +3060,56 @@
     },
     {
       "type": "timeseries",
-      "title": "Average JDBC connection borrow time by pool",
+      "title": "Deepest place in the warehouse connection queue",
       "id": 30,
       "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
+        "type": "loki",
+        "uid": "${loki}"
       },
-      "description": "From the engine's Kamon/OpenTelemetry metrics on :9095. Most JDBC traffic is the AtScale system database, so use this only to check whether a pool wait explains a high outbound wait.",
+      "description": "Highest queue place per interval and connection. 1 means no request waited. Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine log selector at the top); only the time range applies.",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 115
       },
+      "interval": "5m",
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
+            "type": "loki",
+            "uid": "${loki}"
           },
-          "expr": "sum by (env, jdbc_pool_name) (rate(jdbc_pool_borrow_time_seconds_sum{env=~\"$env\"}[$__rate_interval])) / sum by (env, jdbc_pool_name) (rate(jdbc_pool_borrow_time_seconds_count{env=~\"$env\"}[$__rate_interval]))",
           "refId": "A",
-          "legendFormat": "{{env}} {{jdbc_pool_name}}",
-          "format": "time_series"
+          "queryType": "range",
+          "legendFormat": "{{connection}}",
+          "expr": "max by (connection) (max_over_time($engine_log_selector |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | unwrap position [$__interval]))"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "short",
+          "decimals": 0,
+          "min": 1,
           "custom": {
-            "fillOpacity": 10
+            "drawStyle": "bars",
+            "fillOpacity": 70
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -3106,49 +3126,61 @@
     },
     {
       "type": "timeseries",
-      "title": "JDBC borrow timeouts and statements in flight",
+      "title": "Requests that queued behind others, by requester",
       "id": 31,
       "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
+        "type": "loki",
+        "uid": "${loki}"
       },
-      "description": "Borrow timeouts > 0 mean queries waited for a free connection and gave up.",
+      "description": "Warehouse connection requests with a queue place above 1, per interval, by who asked (User query or an AtScale service). Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine log selector at the top); only the time range applies.",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
         "y": 115
       },
+      "interval": "5m",
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
+            "type": "loki",
+            "uid": "${loki}"
           },
-          "expr": "sum by (env) (increase(jdbc_pool_borrow_timeouts_total{env=~\"$env\"}[$__rate_interval]))",
           "refId": "A",
-          "legendFormat": "{{env}} borrow timeouts",
-          "format": "time_series"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "sum by (env) (rate(jdbc_statements_in_flight_sum{env=~\"$env\"}[$__rate_interval])) / sum by (env) (rate(jdbc_statements_in_flight_count{env=~\"$env\"}[$__rate_interval]))",
-          "refId": "B",
-          "legendFormat": "{{env}} avg statements in flight",
-          "format": "time_series"
+          "queryType": "range",
+          "legendFormat": "{{requester}}",
+          "expr": "sum by (requester) (count_over_time($engine_log_selector |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | position > 1 [$__interval]))"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
           "custom": {
-            "fillOpacity": 10
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "User query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -3156,8 +3188,137 @@
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Warehouse connection queue by connection and requester",
+      "id": 32,
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "description": "Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine log selector at the top); only the time range applies.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 123
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "sum by (connection, requester) (count_over_time($engine_log_selector |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` [$__range]))"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "B",
+          "queryType": "instant",
+          "expr": "sum by (connection, requester) (count_over_time($engine_log_selector |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | position > 1 [$__range]))"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "C",
+          "queryType": "instant",
+          "expr": "max by (connection, requester) (max_over_time($engine_log_selector |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | unwrap position [$__range]))"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "connection": "Connection",
+              "requester": "Requester",
+              "Value #A": "Requests",
+              "Value #B": "Queued behind others",
+              "Value #C": "Deepest place"
+            },
+            "indexByName": {
+              "connection": 0,
+              "requester": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Queued behind others",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Deepest place"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 2
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
       }
     }
   ]

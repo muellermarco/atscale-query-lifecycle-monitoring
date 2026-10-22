@@ -21,6 +21,7 @@ AtScale records four phases for every query: Inbound Query, Planning, Outbound a
 - [Drill down to single queries](#drill-down-to-single-queries)
 - [Find out why queries missed aggregates](#find-out-why-queries-missed-aggregates)
 - [See the compression score of aggregate candidates](#see-the-compression-score-of-aggregate-candidates)
+- [See the warehouse connection queue](#see-the-warehouse-connection-queue)
 - [Configuration](#configuration)
 - [Metrics](#metrics)
 - [Limits](#limits)
@@ -269,6 +270,20 @@ Before you add a suggestion to the model:
 Queries that used an aggregate have no candidates and do not appear in these panels.
 
 The engine log has no catalog or model name, so only the time range filters the candidate panels. The panels depend on the text of an engine log message (rule `R050`), which can change between AtScale releases.
+
+## See the warehouse connection queue
+
+Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs each request with its place in line. Place 1 means the request was first in line; a higher place means it waited behind other requests. User queries share the connection with AtScale's own services, such as statistics, aggregate builds and health checks.
+
+The row "Warehouse connection queue" shows:
+
+- the deepest place in line per interval and connection,
+- the requests that queued behind others, by requester (User query or an AtScale service),
+- a table per connection and requester with the number of requests, how many queued and the deepest place.
+
+A deep queue for user queries explains a high Outbound wait. Typical causes are many parallel queries from one dashboard refresh, or a low connection limit for the warehouse connection in AtScale.
+
+These panels read the same AtScale engine log as the compression score panels (`Engine log selector`). Only the time range filters them. They depend on the text of the engine log message "going into queue, is [#N] in line", which can change between AtScale releases.
 
 ## Configuration
 
