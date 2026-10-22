@@ -397,14 +397,11 @@ panels.append({
 y += 8
 
 SUG_FIELDS = ["start", "query_id", "catalog", "model", "duration_ms", "miss_reason", "dataset", "grain", "score",
-              "suggestion", "uda_sml"]
+              "uda_sml"]
 EXP_Q = ('$log_selector |= "atscale_query" | json | event="atscale_query" | env=~"$env" | query_type=~"$query_type" '
          '| catalog=~"$catalog" | model=~"$model" | duration_ms >= $min_runtime_ms | duration_ms <= $max_runtime_ms')
-# Only candidates below the threshold need a user-defined aggregate. The suggestion sentence needs fields from
-# both logs; Grafana cannot join strings, so the Suggestion cell is a data link whose title fills them in per row.
-ENG_SUG = ENG + ' | score < $compression_threshold | label_format suggestion=`{{ .dataset }}`'
-SUGGESTION_TEXT = ("AtScale rejected the aggregate on ${__data.fields.dataset} at ${__data.fields.grain}. "
-                   "Add the user-defined aggregates in UDA (SML) to the model file")
+# Only candidates below the threshold need a user-defined aggregate.
+ENG_SUG = ENG + ' | score < $compression_threshold'
 panels.append({
     "type": "table", "title": "Aggregate suggestions for slow queries", "id": nid(), "datasource": LOKI,
     "description": ("Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine "
@@ -431,7 +428,7 @@ panels.append({
                                                        for i, n in enumerate(SUG_FIELDS)},
                                        "renameByName": {"start": "Start (UTC)", "query_id": "Query ID", "catalog": "Catalog", "model": "Model",
                                                         "duration_ms (max)": "Runtime", "miss_reason": "Miss reason", "dataset": "Fact dataset",
-                                                        "grain": "Candidate grain", "score (min)": "Compression score", "suggestion": "Suggestion",
+                                                        "grain": "Candidate grain", "score (min)": "Compression score",
                                                         "uda_sml": "UDA (SML)"}}},
         {"id": "sortBy", "options": {"sort": [{"field": "Runtime", "desc": True}]}}],
     "fieldConfig": {"defaults": {"custom": {"align": "auto", "filterable": True}},
@@ -441,10 +438,6 @@ panels.append({
                         {"matcher": {"id": "byName", "options": "Compression score"}, "properties": [{"id": "decimals", "value": 2},
                             {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
                             {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "green", "value": 3}]}}]},
-                        {"matcher": {"id": "byName", "options": "Suggestion"}, "properties": [
-                            {"id": "custom.minWidth", "value": 420},
-                            {"id": "custom.cellOptions", "value": {"type": "data-links"}},
-                            {"id": "links", "value": [{"title": SUGGESTION_TEXT, "url": "#"}]}]},
                         {"matcher": {"id": "byName", "options": "UDA (SML)"}, "properties": [
                             {"id": "custom.minWidth", "value": 460}, {"id": "custom.inspect", "value": True},
                             {"id": "custom.cellOptions", "value": {"type": "auto", "wrapText": True}}]}]},

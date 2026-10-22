@@ -2776,7 +2776,7 @@
           "refId": "B",
           "queryType": "range",
           "maxLines": 1000,
-          "expr": "$engine_log_selector |= \"R050 candidate\" | regexp `R050 candidate (?P<candidate>\\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\\S+) and (?P<grain>.*?) is ` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | label_format grain=`{{ if .grain }}{{ .grain | replace \" ,\" \", \" }}{{ else }}(no keys){{ end }}` | score >= $min_score | score <= $max_score | score < $compression_threshold | label_format suggestion=`{{ .dataset }}`"
+          "expr": "$engine_log_selector |= \"R050 candidate\" | regexp `R050 candidate (?P<candidate>\\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\\S+) and (?P<grain>.*?) is ` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | label_format grain=`{{ if .grain }}{{ .grain | replace \" ,\" \", \" }}{{ else }}(no keys){{ end }}` | score >= $min_score | score <= $max_score | score < $compression_threshold"
         }
       ],
       "transformations": [
@@ -2800,7 +2800,7 @@
           "id": "filterFieldsByName",
           "options": {
             "include": {
-              "pattern": "^(start|query_id|catalog|model|duration_ms|miss_reason|dataset|grain|score|suggestion|uda_sml)$"
+              "pattern": "^(start|query_id|catalog|model|duration_ms|miss_reason|dataset|grain|score|uda_sml)$"
             }
           }
         },
@@ -2851,10 +2851,6 @@
                 "operation": "groupby",
                 "aggregations": []
               },
-              "suggestion": {
-                "operation": "groupby",
-                "aggregations": []
-              },
               "uda_sml": {
                 "operation": "groupby",
                 "aggregations": []
@@ -2887,8 +2883,7 @@
               "dataset": 6,
               "grain": 7,
               "score (min)": 8,
-              "suggestion": 9,
-              "uda_sml": 10
+              "uda_sml": 9
             },
             "renameByName": {
               "start": "Start (UTC)",
@@ -2900,7 +2895,6 @@
               "dataset": "Fact dataset",
               "grain": "Candidate grain",
               "score (min)": "Compression score",
-              "suggestion": "Suggestion",
               "uda_sml": "UDA (SML)"
             }
           }
@@ -2986,33 +2980,6 @@
                     }
                   ]
                 }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Suggestion"
-            },
-            "properties": [
-              {
-                "id": "custom.minWidth",
-                "value": 420
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "data-links"
-                }
-              },
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "title": "AtScale rejected the aggregate on ${__data.fields.dataset} at ${__data.fields.grain}. Add the user-defined aggregates in UDA (SML) to the model file",
-                    "url": "#"
-                  }
-                ]
               }
             ]
           },
