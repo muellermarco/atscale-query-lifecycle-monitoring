@@ -363,9 +363,10 @@ DIST_TRANSFORMS = [
                                              "query_id": {"operation": "aggregate", "aggregations": ["distinctCount"]}}}},
     {"id": "groupingToMatrix", "options": {"columnField": "score_bucket", "rowField": "runtime_bucket",
                                            "valueField": "query_id (distinctCount)", "emptyValue": "zero"}},
-    {"id": "organize", "options": {"indexByName": dict({MATRIX: 0}, **{name: i + 1 for i, (_, name) in enumerate(SCORE_BUCKETS)}),
-                                   "renameByName": {MATRIX: "Runtime \\ compression score"}}},
-    {"id": "sortBy", "options": {"sort": [{"field": "Runtime \\ compression score"}]}}]
+    {"id": "organize", "options": {"indexByName": dict({MATRIX: 0}, **{name: i + 1 for i, (_, name) in enumerate(SCORE_BUCKETS)})}},
+    # the matrix names its first column "<row field>\\<column field>"; match it by pattern, not by exact name
+    {"id": "renameByRegex", "options": {"regex": "^runtime_bucket.*$", "renamePattern": "Runtime"}},
+    {"id": "sortBy", "options": {"sort": [{"field": "Runtime"}]}}]
 DIST_HELP = ("Queries without aggregate or cache, counted by runtime (rows) and by the compression score of the aggregate "
              "candidates the engine proposed for them (columns). A query with candidates in several score ranges counts "
              "in each. Filters: Min/Max runtime (ms) and Min/Max compression score at the top. Needs both the exporter "
@@ -378,8 +379,9 @@ panels.append({
     "transformations": DIST_TRANSFORMS,
     "fieldConfig": {"defaults": {"decimals": 0, "custom": {"align": "center", "cellOptions": {"type": "color-background", "mode": "gradient"}},
                                  "color": {"mode": "continuous-BlYlRd"}},
-                    "overrides": [{"matcher": {"id": "byName", "options": "Runtime \\ compression score"},
-                                   "properties": [{"id": "custom.cellOptions", "value": {"type": "auto"}}, {"id": "custom.align", "value": "left"}]}]},
+                    "overrides": [{"matcher": {"id": "byType", "options": "string"},
+                                   "properties": [{"id": "custom.cellOptions", "value": {"type": "auto"}}, {"id": "custom.align", "value": "left"},
+                                                  {"id": "displayName", "value": "Runtime \\ compression score"}, {"id": "custom.minWidth", "value": 170}]}]},
     "options": {"showHeader": True, "cellHeight": "sm"}})
 panels.append({
     "type": "barchart", "title": "Unoptimized queries by runtime, stacked by compression score", "id": nid(), "datasource": LOKI,

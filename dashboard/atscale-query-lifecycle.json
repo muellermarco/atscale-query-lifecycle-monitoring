@@ -2523,10 +2523,14 @@
               "3 to 10": 3,
               "10 to 100": 4,
               "100 and more": 5
-            },
-            "renameByName": {
-              "runtime_bucket\\score_bucket": "Runtime \\ compression score"
             }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^runtime_bucket.*$",
+            "renamePattern": "Runtime"
           }
         },
         {
@@ -2534,7 +2538,7 @@
           "options": {
             "sort": [
               {
-                "field": "Runtime \\ compression score"
+                "field": "Runtime"
               }
             ]
           }
@@ -2557,8 +2561,8 @@
         "overrides": [
           {
             "matcher": {
-              "id": "byName",
-              "options": "Runtime \\ compression score"
+              "id": "byType",
+              "options": "string"
             },
             "properties": [
               {
@@ -2570,6 +2574,14 @@
               {
                 "id": "custom.align",
                 "value": "left"
+              },
+              {
+                "id": "displayName",
+                "value": "Runtime \\ compression score"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 170
               }
             ]
           }
@@ -2682,10 +2694,14 @@
               "3 to 10": 3,
               "10 to 100": 4,
               "100 and more": 5
-            },
-            "renameByName": {
-              "runtime_bucket\\score_bucket": "Runtime \\ compression score"
             }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^runtime_bucket.*$",
+            "renamePattern": "Runtime"
           }
         },
         {
@@ -2693,7 +2709,7 @@
           "options": {
             "sort": [
               {
-                "field": "Runtime \\ compression score"
+                "field": "Runtime"
               }
             ]
           }
