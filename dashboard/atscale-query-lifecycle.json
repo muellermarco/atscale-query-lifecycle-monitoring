@@ -2108,22 +2108,139 @@
       }
     },
     {
+      "type": "table",
+      "title": "Warehouse connection queue for $query_id",
+      "id": 23,
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "description": "Warehouse queries of the query in the Query ID field, by connection, and the deepest place in the connection queue. 1 means no request waited; a higher place means this query waited behind others. Compare with Outbound wait in Slowest queries. Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine log selector at the top); only the time range applies.",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "sum by (connection) (count_over_time($engine_log_selector |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | query_id=\"${query_id}\" [$__range]))"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "B",
+          "queryType": "instant",
+          "expr": "sum by (connection) (count_over_time($engine_log_selector |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | query_id=\"${query_id}\" | position > 1 [$__range]))"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "C",
+          "queryType": "instant",
+          "expr": "max by (connection) (max_over_time($engine_log_selector |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | query_id=\"${query_id}\" | unwrap position [$__range]))"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "connection": "Connection",
+              "Value #A": "Warehouse queries",
+              "Value #B": "Queued behind others",
+              "Value #C": "Deepest place"
+            },
+            "indexByName": {
+              "connection": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Deepest place"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 2
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
       "type": "row",
       "title": "Aggregate candidates and compression score (needs the AtScale engine log in Loki)",
-      "id": 23,
+      "id": 24,
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 88
+        "y": 93
       },
       "panels": []
     },
     {
       "type": "table",
       "title": "Aggregate candidates by dataset and grain",
-      "id": 24,
+      "id": 25,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2133,7 +2250,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 89
+        "y": 94
       },
       "targets": [
         {
@@ -2285,7 +2402,7 @@
     {
       "type": "timeseries",
       "title": "Candidates below the compression threshold",
-      "id": 25,
+      "id": 26,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2295,7 +2412,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 89
+        "y": 94
       },
       "interval": "5m",
       "targets": [
@@ -2337,7 +2454,7 @@
     {
       "type": "table",
       "title": "Aggregate candidates per query",
-      "id": 26,
+      "id": 27,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2347,7 +2464,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 98
+        "y": 103
       },
       "targets": [
         {
@@ -2481,7 +2598,7 @@
     {
       "type": "table",
       "title": "Unoptimized queries by runtime and compression score",
-      "id": 27,
+      "id": 28,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2491,7 +2608,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 108
+        "y": 113
       },
       "targets": [
         {
@@ -2652,7 +2769,7 @@
     {
       "type": "barchart",
       "title": "Unoptimized queries by runtime, stacked by compression score",
-      "id": 28,
+      "id": 29,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2662,7 +2779,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 108
+        "y": 113
       },
       "targets": [
         {
@@ -2801,7 +2918,7 @@
     {
       "type": "table",
       "title": "Aggregate suggestions for slow queries",
-      "id": 29,
+      "id": 30,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2811,7 +2928,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 116
+        "y": 121
       },
       "targets": [
         {
@@ -3072,20 +3189,20 @@
     {
       "type": "row",
       "title": "Warehouse connection queue (needs the AtScale engine log in Loki)",
-      "id": 30,
+      "id": 31,
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 128
+        "y": 133
       },
       "panels": []
     },
     {
       "type": "timeseries",
       "title": "Deepest place in the warehouse connection queue",
-      "id": 31,
+      "id": 32,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -3095,7 +3212,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 129
+        "y": 134
       },
       "interval": "5m",
       "targets": [
@@ -3151,7 +3268,7 @@
     {
       "type": "timeseries",
       "title": "Requests that queued behind others, by requester",
-      "id": 32,
+      "id": 33,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -3161,7 +3278,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 129
+        "y": 134
       },
       "interval": "5m",
       "targets": [
@@ -3220,7 +3337,7 @@
     {
       "type": "table",
       "title": "Warehouse connection queue by connection and requester",
-      "id": 33,
+      "id": 34,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -3230,7 +3347,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 137
+        "y": 142
       },
       "targets": [
         {

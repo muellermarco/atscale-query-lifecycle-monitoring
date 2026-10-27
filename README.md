@@ -232,6 +232,8 @@ loki.process "engine_multiline" {
 
 Point the `forward_to` of your `loki.source.kubernetes` (or `loki.source.file`) at `loki.process.engine_multiline.receiver`. The stage applies only to log lines that arrive after the change.
 
+The table "Warehouse connection queue for" under the query text shows how many warehouse queries the same query sent per connection, and the deepest place in the connection queue (see [See the warehouse connection queue](#see-the-warehouse-connection-queue)). It needs no multiline stage.
+
 The engine log contains user names and the literal filter values of each query. Give access to the Loki data source only to people who may see them. The panel depends on the text of the engine log messages, which can change between AtScale releases.
 
 ## Find out why queries missed aggregates

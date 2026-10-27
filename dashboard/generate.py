@@ -243,6 +243,15 @@ panels.append({
 y += 9
 
 LOKI = {"type": "loki", "uid": "${loki}"}
+QUEUE = ('$engine_log_selector |= "going into queue" '
+         '| regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` '
+         r'| regexp `is \[#(?P<position>\d+)\] in line` | regexp `service=(?P<service>[^,}]+)` '
+         '| label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}`')
+QUEUE_HELP = ("Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs "
+              "the request with its place in line: #1 means first in line, a higher place means the request waited behind "
+              "others. User queries share the connection with AtScale's own services (statistics, aggregate builds, "
+              "health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine "
+              "log selector at the top); only the time range applies.")
 QUERY_TEXT_LINK = ("/d/atscale-query-lifecycle?${__url_time_range}&${datasource:queryparam}&${loki:queryparam}"
                    "&${engine_log_selector:queryparam}&${log_selector:queryparam}&${env:queryparam}&${query_type:queryparam}"
                    "&var-query_id=${__value.raw}")
@@ -286,6 +295,27 @@ panels.append({
     "options": {"showTime": True, "wrapLogMessage": True, "prettifyLogMessage": False, "enableLogDetails": True,
                 "sortOrder": "Ascending", "dedupStrategy": "none"}})
 y += 14
+QQ = r'%s | query_id="${query_id}"' % QUEUE
+panels.append({
+    "type": "table", "title": "Warehouse connection queue for $query_id", "id": nid(), "datasource": LOKI,
+    "description": "Warehouse queries of the query in the Query ID field, by connection, and the deepest place in the connection queue. "
+                   "1 means no request waited; a higher place means this query waited behind others. Compare with Outbound wait in Slowest queries. " + QUEUE_HELP,
+    "gridPos": {"h": 5, "w": 24, "x": 0, "y": y},
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "instant", "expr": "sum by (connection) (count_over_time(%s [$__range]))" % QQ},
+                {"datasource": LOKI, "refId": "B", "queryType": "instant", "expr": "sum by (connection) (count_over_time(%s | position > 1 [$__range]))" % QQ},
+                {"datasource": LOKI, "refId": "C", "queryType": "instant", "expr": "max by (connection) (max_over_time(%s | unwrap position [$__range]))" % QQ}],
+    "transformations": [
+        {"id": "merge", "options": {}},
+        {"id": "organize", "options": {"excludeByName": {"Time": True},
+                                       "renameByName": {"connection": "Connection", "Value #A": "Warehouse queries",
+                                                        "Value #B": "Queued behind others", "Value #C": "Deepest place"},
+                                       "indexByName": {"connection": 0, "Value #A": 1, "Value #B": 2, "Value #C": 3}}}],
+    "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "custom": {"align": "auto"}},
+                    "overrides": [{"matcher": {"id": "byName", "options": "Deepest place"}, "properties": [
+                        {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+                        {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": None}, {"color": "red", "value": 2}]}}]}]},
+    "options": {"showHeader": True, "cellHeight": "sm"}})
+y += 5
 
 ENG = ('$engine_log_selector |= "R050 candidate" '
        r'| regexp `R050 candidate (?P<candidate>\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\S+) and (?P<grain>.*?) is ` '
@@ -464,15 +494,6 @@ panels.append({
     "options": {"showHeader": True, "cellHeight": "sm"}})
 y += 12
 
-QUEUE = ('$engine_log_selector |= "going into queue" '
-         '| regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` '
-         r'| regexp `is \[#(?P<position>\d+)\] in line` | regexp `service=(?P<service>[^,}]+)` '
-         '| label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}`')
-QUEUE_HELP = ("Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs "
-              "the request with its place in line: #1 means first in line, a higher place means the request waited behind "
-              "others. User queries share the connection with AtScale's own services (statistics, aggregate builds, "
-              "health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine "
-              "log selector at the top); only the time range applies.")
 panels.append(row("Warehouse connection queue (needs the AtScale engine log in Loki)", y)); y += 1
 panels.append({
     "type": "timeseries", "title": "Deepest place in the warehouse connection queue", "id": nid(), "datasource": LOKI,
