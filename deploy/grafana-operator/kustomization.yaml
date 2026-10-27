@@ -1,0 +1,7 @@
+# Pick the dashboards you need: atscale-query-lifecycle (logs in Loki) or atscale-query-lifecycle-es
+# (logs in Elasticsearch). Set the namespace to your tenant namespace.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - atscale-query-lifecycle.yaml
+  - atscale-query-lifecycle-es.yaml

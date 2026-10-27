@@ -172,6 +172,22 @@ Skip this section if the Helm chart installed the dashboard through the sidecar.
 
 Result: the dashboard "AtScale query lifecycle" opens. It fills as new queries run.
 
+### Deploy with the Grafana Operator (GitOps, several clusters)
+
+The folder `deploy/grafana-operator` has the dashboards as `GrafanaDashboard` resources (`grafana.integreatly.org/v1beta1`), with a `kustomization.yaml`:
+
+- `atscale-query-lifecycle.yaml`: logs in Loki
+- `atscale-query-lifecycle-es.yaml`: logs in Elasticsearch (see [Use Elasticsearch for logs](#use-elasticsearch-for-logs))
+
+These variants are multi-cluster. They have a `Cluster` variable at the top, and every PromQL query filters on `cluster=~"$cluster"`. So one dashboard works on a central Grafana that reads the metrics of several Kubernetes clusters. Your Prometheus must put the label `cluster` on the exporter metrics, for example as an external label or with a relabeling on the scrape.
+
+1. Copy the resources you need into your GitOps repository.
+2. In each resource, set `instanceSelector.matchLabels` to the labels of your Grafana instance, and `folder` to your Grafana folder.
+3. Set the namespace in `kustomization.yaml`.
+4. Keep the annotation `kustomize.toolkit.fluxcd.io/substitute: disabled`. Without it, Flux replaces the `${...}` Grafana variables in the dashboard JSON.
+
+The resources are generated: change the dashboards in `dashboard/generate*.py` and run `python3 dashboard/generate_grafana_operator.py`. Tested against the `GrafanaDashboard` schema of Grafana Operator v5.25.0. The cluster label and metric are set at the top of `generate_grafana_operator.py`.
+
 ## Read the dashboard
 
 Start with Query type = `User`. `System` queries are AtScale's own queries, for example aggregate builds.
