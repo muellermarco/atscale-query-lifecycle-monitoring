@@ -21,6 +21,7 @@ AtScale records four phases for every query: Inbound Query, Planning, Outbound a
 - [Drill down to single queries](#drill-down-to-single-queries)
 - [Show the query text of one query](#show-the-query-text-of-one-query)
 - [Show the trace of one query in Tempo](#show-the-trace-of-one-query-in-tempo)
+- [Compare with a dashboard from engine telemetry only](#compare-with-a-dashboard-from-engine-telemetry-only)
 - [Find out why queries missed aggregates](#find-out-why-queries-missed-aggregates)
 - [See the compression score of aggregate candidates](#see-the-compression-score-of-aggregate-candidates)
 - [See the warehouse connection queue](#see-the-warehouse-connection-queue)
@@ -251,6 +252,18 @@ By default the AtScale collector writes the traces only to files on its disk. To
    Result: Grafana Explore opens a search for the trace. Select the trace to see the waterfall.
 
 The traces contain user names and the inbound query text, but no outbound SQL. Re-check your collector configuration after each AtScale chart upgrade, because your ConfigMap replaces the chart's configuration.
+
+## Compare with a dashboard from engine telemetry only
+
+The dashboard "AtScale queries from engine telemetry" (`dashboard/atscale-query-lifecycle-engine.json`) uses no exporter and no AtScale API. It reads the engine traces in Tempo (TraceQL metrics and search) and the engine log in Loki. Its last panel lists what it cannot show compared with the exporter dashboard, for example model names and the reason for an aggregate miss.
+
+It needs:
+
+- The trace export to Tempo from the previous section. Add the resource attribute `k8s.namespace.name` in the collector (a `resource` processor on the `traces` pipeline). The dashboard filters traces and engine logs by namespace.
+- The Tempo metrics generator with the `local-blocks` processor, for TraceQL metrics. Set `query_frontend.metrics.max_duration` to your retention, because the default allows only 3 hours per query.
+- Loki with the engine log, joined to multi-line entries.
+
+With the Helm chart, set `dashboard.engineTelemetry: true` to ship it next to the main dashboard. To change it, edit `dashboard/generate_engine.py` and run `python3 dashboard/generate_engine.py`.
 
 ## Find out why queries missed aggregates
 

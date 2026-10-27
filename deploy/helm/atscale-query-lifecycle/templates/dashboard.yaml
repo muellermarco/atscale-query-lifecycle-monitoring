@@ -12,4 +12,8 @@ metadata:
 data:
   atscale-query-lifecycle.json: |-
 {{ .Files.Get "files/atscale-query-lifecycle.json" | indent 4 }}
+  {{- if .Values.dashboard.engineTelemetry }}
+  atscale-query-lifecycle-engine.json: |-
+{{ .Files.Get "files/atscale-query-lifecycle-engine.json" | indent 4 }}
+  {{- end }}
 {{- end }}

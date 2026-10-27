@@ -46,6 +46,8 @@ serviceMonitor:
 # Grafana sidecar dashboard ConfigMap. Match your sidecar label, often grafana_dashboard: "1".
 dashboard:
   enabled: false
+  # Also ship "AtScale queries from engine telemetry" (needs Tempo with the AtScale traces, and Loki).
+  engineTelemetry: false
   labels:
     grafana_dashboard: "1"
   annotations: {}

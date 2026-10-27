@@ -589,6 +589,7 @@ dash = {
     "links": [],
     "panels": panels,
 }
-for path in OUTPUTS:
-    path.write_text(json.dumps(dash, indent=2) + "\n")
-    print("wrote", path.relative_to(ROOT))
+if __name__ == "__main__":
+    for path in OUTPUTS:
+        path.write_text(json.dumps(dash, indent=2) + "\n")
+        print("wrote", path.relative_to(ROOT))

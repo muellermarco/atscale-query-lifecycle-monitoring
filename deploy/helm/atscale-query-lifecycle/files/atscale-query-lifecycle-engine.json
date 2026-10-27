@@ -1,0 +1,1020 @@
+{
+  "uid": "atscale-query-lifecycle-engine",
+  "title": "AtScale queries from engine telemetry",
+  "description": "AtScale query performance from the engine's own OpenTelemetry traces (Tempo) and engine log (Loki), without the exporter or the AtScale API. Sample code, provided as is, not supported by AtScale.",
+  "tags": [
+    "atscale",
+    "queries",
+    "performance",
+    "tempo"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "tempo",
+        "label": "Tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "loki",
+        "label": "Loki",
+        "type": "datasource",
+        "query": "loki",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "namespace",
+        "label": "AtScale namespace",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "${loki}"
+        },
+        "query": "label_values({container=\"engine\"}, namespace)",
+        "definition": "label_values({container=\"engine\"}, namespace)",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
+        "sort": 1
+      },
+      {
+        "name": "min_duration",
+        "label": "Min duration",
+        "type": "textbox",
+        "query": "1s",
+        "current": {
+          "text": "1s",
+          "value": "1s"
+        },
+        "hide": 0
+      },
+      {
+        "name": "query_id",
+        "label": "Query ID",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "AtScale query lifecycle (exporter)",
+      "type": "link",
+      "url": "/d/atscale-query-lifecycle",
+      "icon": "dashboard"
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Overview from engine traces (Tempo)",
+      "id": 1,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "User queries",
+      "id": 2,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "User queries that started in the selected range. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} | count_over_time()",
+          "metricsQueryType": "range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "p95 duration",
+      "id": 3,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "95th percentile of the end-to-end server time per user query (root span duration), highest interval in the range. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} | quantile_over_time(duration, .95)",
+          "metricsQueryType": "range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Failed user queries",
+      "id": 4,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "User queries whose root span has status error. The error message is in the QueryFailedEvent of the trace. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\" && status=error} | count_over_time()",
+          "metricsQueryType": "range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Warehouse queries",
+      "id": 5,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "Warehouse queries (subqueries) that user queries sent. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} >> {span.subqueryId != nil} | count_over_time()",
+          "metricsQueryType": "range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Queries per second by type",
+      "id": 6,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "User queries and AtScale's own system queries (aggregate builds, statistics). From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType != nil} | rate() by (span.queryType)",
+          "metricsQueryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "User query duration",
+      "id": 7,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "Median and 95th percentile of the end-to-end server time per user query. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} | quantile_over_time(duration, .5, .95)",
+          "metricsQueryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 by phase",
+      "id": 8,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "95th percentile per phase: Total (root span), Planning (span with QueryPlanningStartedEvent) and one warehouse query (subquery span). Traces do not split the outbound phase into connection wait and warehouse time. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} | quantile_over_time(duration, .95)",
+          "metricsQueryType": "range",
+          "legendFormat": "Total"
+        },
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "B",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} > {event:name=\"QueryPlanningStartedEvent\"} | quantile_over_time(duration, .95)",
+          "metricsQueryType": "range",
+          "legendFormat": "Planning"
+        },
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "C",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} >> {span.subqueryId != nil} | quantile_over_time(duration, .95)",
+          "metricsQueryType": "range",
+          "legendFormat": "Warehouse query"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 duration by model ID",
+      "id": 9,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "Traces carry the model ID, not the model name. Look the ID up in AtScale Design Center or the catalog API. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} | quantile_over_time(duration, .95) by (span.modelId)",
+          "metricsQueryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "User queries by client language",
+      "id": 10,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "From the QueryReceivedEvent: analysis = MDX or DAX over XMLA (Excel, Power BI), pgsql = the SQL interface. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} | rate() by (event.language)",
+          "metricsQueryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Warehouse queries by aggregate cache use",
+      "id": 11,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "From the SubquerySucceededEvent of each warehouse query: True means AtScale answered it from the aggregate cache. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\"} >> {span.subqueryId != nil && event.usedAggregateCache != nil} | rate() by (event.usedAggregateCache)",
+          "metricsQueryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Single queries (Tempo search and engine log)",
+      "id": 12,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Slowest user queries",
+      "id": 13,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "description": "User queries longer than the Min duration field, from Tempo search. Click a Trace ID to open the waterfall, or a Name (the query ID) to show its query text and connection queue below. From the AtScale engine's OpenTelemetry traces in Tempo (one trace per query, root span named after the query ID). Needs the AtScale telemetry collector to export traces to Tempo with the resource attribute k8s.namespace.name, and the Tempo metrics generator (local-blocks) for TraceQL metrics.",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "tableType": "traces",
+          "limit": 100,
+          "query": "{resource.k8s.namespace.name=\"$namespace\" && span.queryType=\"User\" && duration > $min_duration} | select(span.modelId, span.userId)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show query text and queue",
+                    "url": "/d/atscale-query-lifecycle-engine?${__url_time_range}&${tempo:queryparam}&${loki:queryparam}&${namespace:queryparam}&${min_duration:queryparam}&var-query_id=${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Duration",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Query text for $query_id",
+      "id": 14,
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "description": "Inbound MDX, DAX or SQL and the outbound warehouse SQL from the engine log in Loki. Needs a log collector that joins multi-line engine log entries. The engine log contains user names and filter values.",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 200,
+          "expr": "{container=\"engine\", namespace=\"$namespace\"} |~ \"queryId=${query_id}[,}]\" |~ \"Received (MDX|DAX|PGSQL) query|Executing SQL Query\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Warehouse connection queue for $query_id",
+      "id": 15,
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "description": "Warehouse queries of the selected query by connection, and the deepest place in the connection queue. Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine log selector at the top); only the time range applies.",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "sum by (connection) (count_over_time({container=\"engine\", namespace=\"$namespace\"} |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | query_id=\"${query_id}\" [$__range]))"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "B",
+          "queryType": "instant",
+          "expr": "sum by (connection) (count_over_time({container=\"engine\", namespace=\"$namespace\"} |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | query_id=\"${query_id}\" | position > 1 [$__range]))"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "C",
+          "queryType": "instant",
+          "expr": "max by (connection) (max_over_time({container=\"engine\", namespace=\"$namespace\"} |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | query_id=\"${query_id}\" | unwrap position [$__range]))"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "connection": "Connection",
+              "Value #A": "Warehouse queries",
+              "Value #B": "Queued behind others",
+              "Value #C": "Deepest place"
+            },
+            "indexByName": {
+              "connection": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Warehouse connection queue and aggregate candidates (engine log)",
+      "id": 16,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests that queued behind others, by requester",
+      "id": 17,
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "description": "Warehouse connection requests with a queue place above 1, by who asked. Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine log selector at the top); only the time range applies.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 58
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{requester}}",
+          "expr": "sum by (requester) (count_over_time({container=\"engine\", namespace=\"$namespace\"} |= \"going into queue\" | regexp `conn=(?P<connection>[^,}]+)` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | regexp `is \\[#(?P<position>\\d+)\\] in line` | regexp `service=(?P<service>[^,}]+)` | label_format requester=`{{ if .service }}{{ .service }}{{ else }}User query{{ end }}` | position > 1 [$__interval]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Aggregate candidates by dataset and grain",
+      "id": 18,
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "description": "Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Loki (Engine log selector at the top); the engine log has no catalog or model, so only the time range applies.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 58
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "avg by (dataset, grain) (avg_over_time({container=\"engine\", namespace=\"$namespace\"} |= \"R050 candidate\" | regexp `R050 candidate (?P<candidate>\\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\\S+) and (?P<grain>.*?) is ` | regexp `queryId=(?P<query_id>[0-9a-f-]+)` | label_format grain=`{{ if .grain }}{{ .grain | replace \" ,\" \", \" }}{{ else }}(no keys){{ end }}`  | unwrap score [$__range]))"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "dataset": "Fact dataset",
+              "grain": "Aggregate grain",
+              "Value": "Compression score"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Compression score"
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Compared with the exporter dashboard",
+      "id": 19,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 66
+      },
+      "panels": []
+    },
+    {
+      "type": "text",
+      "title": "What engine telemetry alone does not give you",
+      "id": 20,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 67
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "This dashboard uses no exporter and no AtScale API. Compared with **AtScale query lifecycle** (exporter + query history API):\n\n| Topic | Engine telemetry (this dashboard) | Exporter dashboard |\n|---|---|---|\n| Catalog and model | IDs only | Names |\n| Phases | Total, planning, each warehouse query | Inbound, planning, outbound wait, warehouse, result processing |\n| Why a query missed aggregates | Aggregate cache use per warehouse query only | Miss reason per query, aggregate suggestions |\n| Query text | Inbound in the trace, outbound in the engine log | Not in the API, engine log only |\n| Waterfall of one query | Yes (Tempo) | No |\n| History | Tempo and Loki retention (72 hours here) | Prometheus retention |\n| Setup on the AtScale side | Collector config override, AtScale upgrade restarts all pods | API token only |\n\nBoth depend on undocumented formats: span and event names here, the engine log text in both dashboards."
+      }
+    }
+  ]
+}
