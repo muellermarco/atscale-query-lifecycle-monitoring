@@ -212,7 +212,7 @@ If you use another log store, for example Elasticsearch or Splunk, filter on `"e
 
 ## Show the query text of one query
 
-The AtScale query history API has no query text. The AtScale engine log has it. For each query, the engine logs the inbound query (`Received MDX query` for XMLA clients, `Received PGSQL query` for the SQL interface) and each outbound warehouse query (`Executing SQL Query`). Each log entry carries the query ID. The panel "Query text" shows these entries for the ID in the `Query ID` field at the top of the dashboard.
+The AtScale query history API has no query text. The AtScale engine log has it. For each query, the engine logs the inbound query (`Received MDX query` for Excel and other MDX clients, `Received DAX query` for Power BI, `Received PGSQL query` for the SQL interface) and each outbound warehouse query (`Executing SQL Query`). Each log entry carries the query ID. The panel "Query text" shows these entries for the ID in the `Query ID` field at the top of the dashboard.
 
 The engine writes the query text on the lines after the entry header. Most log collectors store each line as its own entry, which separates the text from its query ID. Configure your collector to join the lines first. For Grafana Alloy, add a `loki.process` stage for the engine container:
 

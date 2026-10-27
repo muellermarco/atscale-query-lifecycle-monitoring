@@ -276,13 +276,13 @@ panels.append({
 y += 12
 panels.append({
     "type": "logs", "title": "Query text for $query_id", "id": nid(), "datasource": LOKI,
-    "description": "The inbound MDX or SQL that the client sent and the outbound SQL that AtScale sent to the warehouse, for the Query ID field at the top. "
+    "description": "The inbound MDX, DAX or SQL that the client sent and the outbound SQL that AtScale sent to the warehouse, for the Query ID field at the top. "
                    "Click a Query ID in Slowest queries to fill it. Read from the AtScale engine log in Loki (Engine log selector at the top). "
                    "Needs a log collector that joins multi-line engine log entries (lines that do not start with a timestamp) into one entry. "
                    "The engine log contains user names and the filter values of each query.",
     "gridPos": {"h": 14, "w": 24, "x": 0, "y": y},
     "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 200,
-                 "expr": r'$engine_log_selector |~ "queryId=${query_id}[,}]" |~ "Received (MDX|PGSQL) query|Executing SQL Query"'}],
+                 "expr": r'$engine_log_selector |~ "queryId=${query_id}[,}]" |~ "Received (MDX|DAX|PGSQL) query|Executing SQL Query"'}],
     "options": {"showTime": True, "wrapLogMessage": True, "prettifyLogMessage": False, "enableLogDetails": True,
                 "sortOrder": "Ascending", "dedupStrategy": "none"}})
 y += 14
