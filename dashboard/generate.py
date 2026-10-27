@@ -8,6 +8,7 @@ Run: python3 dashboard/generate.py
 """
 import json
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUTS = [ROOT / "dashboard" / "atscale-query-lifecycle.json",
@@ -252,6 +253,11 @@ QUEUE_HELP = ("Each warehouse query asks the AtScale connection manager for a co
               "others. User queries share the connection with AtScale's own services (statistics, aggregate builds, "
               "health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Loki (Engine "
               "log selector at the top); only the time range applies.")
+# Explore pane JSON, URL-encoded except the ${...} placeholders Grafana fills in (both are URL-safe ids).
+_PANES = ('{"t":{"datasource":"@DS@","queries":[{"refId":"A","datasource":{"type":"tempo","uid":"@DS@"},'
+          '"queryType":"traceql","query":"{name=\\"@QID@\\"}","limit":20}],"range":{"from":"now-24h","to":"now"}}}')
+TRACE_LINK = ("/explore?schemaVersion=1&orgId=1&panes="
+              + quote(_PANES, safe="").replace("%40DS%40", "${tempo}").replace("%40QID%40", "${__value.raw}"))
 QUERY_TEXT_LINK = ("/d/atscale-query-lifecycle?${__url_time_range}&${datasource:queryparam}&${loki:queryparam}"
                    "&${engine_log_selector:queryparam}&${log_selector:queryparam}&${env:queryparam}&${query_type:queryparam}"
                    "&var-query_id=${__value.raw}")
@@ -260,7 +266,7 @@ LOG_FIELDS = ["start", "query_id", "catalog", "model", "query_type", "optimizati
 panels.append(row("Single queries (needs the exporter's query log in Loki)", y)); y += 1
 panels.append({
     "type": "table", "title": "Slowest queries", "id": nid(), "datasource": LOKI,
-    "description": "One row per query from the exporter's JSON query log, slowest first. Click a Query ID to show its inbound and outbound query text below, or search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
+    "description": "One row per query from the exporter's JSON query log, slowest first. Click a Query ID to show its inbound and outbound query text below or its trace in Tempo, or search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
     "gridPos": {"h": 12, "w": 24, "x": 0, "y": y},
     "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 1000,
                  "expr": '$log_selector |= "atscale_query" | json | event="atscale_query" | env=~"$env" | query_type=~"$query_type" | catalog=~"$catalog" | model=~"$model" | optimization=~"$optimization" | status=~"$status"'}],
@@ -280,7 +286,8 @@ panels.append({
                         {"matcher": {"id": "byName", "options": "Total"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}},
                             {"id": "color", "value": {"mode": "continuous-GrYlRd"}}]},
                         {"matcher": {"id": "byName", "options": "Query ID"}, "properties": [{"id": "custom.minWidth", "value": 300},
-                            {"id": "links", "value": [{"title": "Show query text", "url": QUERY_TEXT_LINK}]}]}]},
+                            {"id": "links", "value": [{"title": "Show query text", "url": QUERY_TEXT_LINK},
+                                                       {"title": "Show trace (Tempo)", "url": TRACE_LINK, "targetBlank": True}]}]}]},
     "options": {"showHeader": True, "cellHeight": "sm", "footer": {"show": False}}})
 y += 12
 panels.append({
@@ -554,6 +561,7 @@ dash = {
     "templating": {"list": [
         {"name": "datasource", "label": "Prometheus", "type": "datasource", "query": "prometheus", "refresh": 1, "hide": 0},
         {"name": "loki", "label": "Loki", "type": "datasource", "query": "loki", "refresh": 1, "hide": 0},
+        {"name": "tempo", "label": "Tempo", "type": "datasource", "query": "tempo", "refresh": 1, "hide": 0},
         {"name": "engine_log_selector", "label": "Engine log selector", "type": "textbox", "query": '{container="engine"}',
          "current": {"text": '{container="engine"}', "value": '{container="engine"}'}, "hide": 0},
         {"name": "compression_threshold", "label": "Compression threshold", "type": "textbox", "query": "3",

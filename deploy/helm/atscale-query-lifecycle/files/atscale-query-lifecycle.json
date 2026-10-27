@@ -36,6 +36,14 @@
         "hide": 0
       },
       {
+        "name": "tempo",
+        "label": "Tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
         "name": "engine_log_selector",
         "label": "Engine log selector",
         "type": "textbox",
@@ -1889,7 +1897,7 @@
         "type": "loki",
         "uid": "${loki}"
       },
-      "description": "One row per query from the exporter's JSON query log, slowest first. Click a Query ID to show its inbound and outbound query text below, or search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
+      "description": "One row per query from the exporter's JSON query log, slowest first. Click a Query ID to show its inbound and outbound query text below or its trace in Tempo, or search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
       "gridPos": {
         "h": 12,
         "w": 24,
@@ -2056,6 +2064,11 @@
                   {
                     "title": "Show query text",
                     "url": "/d/atscale-query-lifecycle?${__url_time_range}&${datasource:queryparam}&${loki:queryparam}&${engine_log_selector:queryparam}&${log_selector:queryparam}&${env:queryparam}&${query_type:queryparam}&var-query_id=${__value.raw}"
+                  },
+                  {
+                    "title": "Show trace (Tempo)",
+                    "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22t%22%3A%7B%22datasource%22%3A%22${tempo}%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22${tempo}%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7Bname%3D%5C%22${__value.raw}%5C%22%7D%22%2C%22limit%22%3A20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-24h%22%2C%22to%22%3A%22now%22%7D%7D%7D",
+                    "targetBlank": true
                   }
                 ]
               }

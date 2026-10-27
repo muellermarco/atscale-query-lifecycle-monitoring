@@ -20,6 +20,7 @@ AtScale records four phases for every query: Inbound Query, Planning, Outbound a
 - [Read the dashboard](#read-the-dashboard)
 - [Drill down to single queries](#drill-down-to-single-queries)
 - [Show the query text of one query](#show-the-query-text-of-one-query)
+- [Show the trace of one query in Tempo](#show-the-trace-of-one-query-in-tempo)
 - [Find out why queries missed aggregates](#find-out-why-queries-missed-aggregates)
 - [See the compression score of aggregate candidates](#see-the-compression-score-of-aggregate-candidates)
 - [See the warehouse connection queue](#see-the-warehouse-connection-queue)
@@ -235,6 +236,21 @@ Point the `forward_to` of your `loki.source.kubernetes` (or `loki.source.file`) 
 The table "Warehouse connection queue for" under the query text shows how many warehouse queries the same query sent per connection, and the deepest place in the connection queue (see [See the warehouse connection queue](#see-the-warehouse-connection-queue)). It needs no multiline stage.
 
 The engine log contains user names and the literal filter values of each query. Give access to the Loki data source only to people who may see them. The panel depends on the text of the engine log messages, which can change between AtScale releases.
+
+## Show the trace of one query in Tempo
+
+The AtScale engine sends an OpenTelemetry trace for every query to the AtScale telemetry collector. Each trace has a root span named after the query ID, with the model and catalog IDs, the user, the query type and the inbound query text (event `QueryReceivedEvent`). Below it are a planning span, an execution span and one span per warehouse query. Grafana shows the trace as a waterfall, so you see which warehouse queries ran in parallel and which one took longest.
+
+By default the AtScale collector writes the traces only to files on its disk. To see them in Grafana:
+
+1. Install Grafana Tempo and add it as a Grafana data source.
+2. Give the AtScale collector a configuration that also exports traces to Tempo: copy the chart's collector configuration (ConfigMap `<release>-telemetry`, key `relay`) into your own ConfigMap, add an `otlp` exporter that points at Tempo to the `traces` pipeline, and set `telemetry.configMap.existingName` to that ConfigMap in your AtScale values. Upgrading the AtScale release restarts its pods.
+3. In the dashboard, select your Tempo data source in the `Tempo` list.
+4. In "Slowest queries", click a `Query ID` and select "Show trace (Tempo)".
+
+   Result: Grafana Explore opens a search for the trace. Select the trace to see the waterfall.
+
+The traces contain user names and the inbound query text, but no outbound SQL. Re-check your collector configuration after each AtScale chart upgrade, because your ConfigMap replaces the chart's configuration.
 
 ## Find out why queries missed aggregates
 
