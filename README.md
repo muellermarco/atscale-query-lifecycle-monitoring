@@ -19,6 +19,7 @@ AtScale records four phases for every query: Inbound Query, Planning, Outbound a
 - [Import the Grafana dashboard](#import-the-grafana-dashboard)
 - [Read the dashboard](#read-the-dashboard)
 - [Drill down to single queries](#drill-down-to-single-queries)
+- [Show the query text of one query](#show-the-query-text-of-one-query)
 - [Find out why queries missed aggregates](#find-out-why-queries-missed-aggregates)
 - [See the compression score of aggregate candidates](#see-the-compression-score-of-aggregate-candidates)
 - [See the warehouse connection queue](#see-the-warehouse-connection-queue)
@@ -205,9 +206,33 @@ The table "Slowest queries" reads these lines from Loki. To use it:
 
    Result: "Slowest queries" lists one row per query, slowest first, with the same filters as the other panels.
 
-4. Copy a `Query ID` and search for it on the Queries page in AtScale Design Center. That page shows the inbound query and the outbound SQL.
+4. Click a `Query ID` and select "Show query text". The panel "Query text" below the table shows the query text (see the next section). You can also search for the ID on the Queries page in AtScale Design Center.
 
 If you use another log store, for example Elasticsearch or Splunk, filter on `"event": "atscale_query"` there. The other dashboard panels do not need Loki.
+
+## Show the query text of one query
+
+The AtScale query history API has no query text. The AtScale engine log has it. For each query, the engine logs the inbound query (`Received MDX query` for XMLA clients, `Received PGSQL query` for the SQL interface) and each outbound warehouse query (`Executing SQL Query`). Each log entry carries the query ID. The panel "Query text" shows these entries for the ID in the `Query ID` field at the top of the dashboard.
+
+The engine writes the query text on the lines after the entry header. Most log collectors store each line as its own entry, which separates the text from its query ID. Configure your collector to join the lines first. For Grafana Alloy, add a `loki.process` stage for the engine container:
+
+```alloy
+loki.process "engine_multiline" {
+  forward_to = [loki.write.default.receiver]
+  stage.match {
+    selector = "{container=\"engine\"}"
+    stage.multiline {
+      firstline     = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3} "
+      max_lines     = 2000
+      max_wait_time = "3s"
+    }
+  }
+}
+```
+
+Point the `forward_to` of your `loki.source.kubernetes` (or `loki.source.file`) at `loki.process.engine_multiline.receiver`. The stage applies only to log lines that arrive after the change.
+
+The engine log contains user names and the literal filter values of each query. Give access to the Loki data source only to people who may see them. The panel depends on the text of the engine log messages, which can change between AtScale releases.
 
 ## Find out why queries missed aggregates
 

@@ -243,12 +243,15 @@ panels.append({
 y += 9
 
 LOKI = {"type": "loki", "uid": "${loki}"}
+QUERY_TEXT_LINK = ("/d/atscale-query-lifecycle?${__url_time_range}&${datasource:queryparam}&${loki:queryparam}"
+                   "&${engine_log_selector:queryparam}&${log_selector:queryparam}&${env:queryparam}&${query_type:queryparam}"
+                   "&var-query_id=${__value.raw}")
 LOG_FIELDS = ["start", "query_id", "catalog", "model", "query_type", "optimization", "miss_reason", "status", "duration_ms",
               "inbound_ms", "planning_ms", "outbound_wait_ms", "warehouse_ms", "result_processing_ms", "subqueries"]
 panels.append(row("Single queries (needs the exporter's query log in Loki)", y)); y += 1
 panels.append({
     "type": "table", "title": "Slowest queries", "id": nid(), "datasource": LOKI,
-    "description": "One row per query from the exporter's JSON query log, slowest first. Copy the query_id and search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
+    "description": "One row per query from the exporter's JSON query log, slowest first. Click a Query ID to show its inbound and outbound query text below, or search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
     "gridPos": {"h": 12, "w": 24, "x": 0, "y": y},
     "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 1000,
                  "expr": '$log_selector |= "atscale_query" | json | event="atscale_query" | env=~"$env" | query_type=~"$query_type" | catalog=~"$catalog" | model=~"$model" | optimization=~"$optimization" | status=~"$status"'}],
@@ -267,9 +270,22 @@ panels.append({
                         {"matcher": {"id": "byName", "options": "Subqueries"}, "properties": [{"id": "unit", "value": "short"}, {"id": "decimals", "value": 0}]},
                         {"matcher": {"id": "byName", "options": "Total"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}},
                             {"id": "color", "value": {"mode": "continuous-GrYlRd"}}]},
-                        {"matcher": {"id": "byName", "options": "Query ID"}, "properties": [{"id": "custom.minWidth", "value": 300}]}]},
+                        {"matcher": {"id": "byName", "options": "Query ID"}, "properties": [{"id": "custom.minWidth", "value": 300},
+                            {"id": "links", "value": [{"title": "Show query text", "url": QUERY_TEXT_LINK}]}]}]},
     "options": {"showHeader": True, "cellHeight": "sm", "footer": {"show": False}}})
 y += 12
+panels.append({
+    "type": "logs", "title": "Query text for $query_id", "id": nid(), "datasource": LOKI,
+    "description": "The inbound MDX or SQL that the client sent and the outbound SQL that AtScale sent to the warehouse, for the Query ID field at the top. "
+                   "Click a Query ID in Slowest queries to fill it. Read from the AtScale engine log in Loki (Engine log selector at the top). "
+                   "Needs a log collector that joins multi-line engine log entries (lines that do not start with a timestamp) into one entry. "
+                   "The engine log contains user names and the filter values of each query.",
+    "gridPos": {"h": 14, "w": 24, "x": 0, "y": y},
+    "targets": [{"datasource": LOKI, "refId": "A", "queryType": "range", "maxLines": 200,
+                 "expr": r'$engine_log_selector |~ "queryId=${query_id}[,}]" |~ "Received (MDX|PGSQL) query|Executing SQL Query"'}],
+    "options": {"showTime": True, "wrapLogMessage": True, "prettifyLogMessage": False, "enableLogDetails": True,
+                "sortOrder": "Ascending", "dedupStrategy": "none"}})
+y += 14
 
 ENG = ('$engine_log_selector |= "R050 candidate" '
        r'| regexp `R050 candidate (?P<candidate>\S+): score=(?P<score>[0-9.Ee+-]+) .*Dataset (?P<dataset>\S+) and (?P<grain>.*?) is ` '
@@ -531,6 +547,8 @@ dash = {
          "current": {"text": "1000000", "value": "1000000"}, "hide": 0},
         {"name": "log_selector", "label": "Log selector", "type": "textbox", "query": '{container="exporter"}',
          "current": {"text": '{container="exporter"}', "value": '{container="exporter"}'}, "hide": 0},
+        {"name": "query_id", "label": "Query ID", "type": "textbox", "query": "",
+         "current": {"text": "", "value": ""}, "hide": 0},
         var("env", "Instance", 'label_values(%s, env)' % base, multi=False, include_all=False),
         var("query_type", "Query type", 'label_values(%s{env=~"$env"}, query_type)' % base, current={"text": ["User"], "value": ["User"], "selected": True}),
         var("catalog", "Catalog", 'label_values(%s{env=~"$env"}, catalog)' % base),

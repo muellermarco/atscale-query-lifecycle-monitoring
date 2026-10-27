@@ -113,6 +113,17 @@
         "hide": 0
       },
       {
+        "name": "query_id",
+        "label": "Query ID",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      },
+      {
         "name": "env",
         "label": "Instance",
         "type": "query",
@@ -1878,7 +1889,7 @@
         "type": "loki",
         "uid": "${loki}"
       },
-      "description": "One row per query from the exporter's JSON query log, slowest first. Copy the query_id and search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
+      "description": "One row per query from the exporter's JSON query log, slowest first. Click a Query ID to show its inbound and outbound query text below, or search for it on the Queries page in AtScale Design Center. Needs Loki and the log selector at the top of the dashboard; the other panels work without it.",
       "gridPos": {
         "h": 12,
         "w": 24,
@@ -2038,6 +2049,15 @@
               {
                 "id": "custom.minWidth",
                 "value": 300
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show query text",
+                    "url": "/d/atscale-query-lifecycle?${__url_time_range}&${datasource:queryparam}&${loki:queryparam}&${engine_log_selector:queryparam}&${log_selector:queryparam}&${env:queryparam}&${query_type:queryparam}&var-query_id=${__value.raw}"
+                  }
+                ]
               }
             ]
           }
@@ -2052,22 +2072,58 @@
       }
     },
     {
+      "type": "logs",
+      "title": "Query text for $query_id",
+      "id": 22,
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "description": "The inbound MDX or SQL that the client sent and the outbound SQL that AtScale sent to the warehouse, for the Query ID field at the top. Click a Query ID in Slowest queries to fill it. Read from the AtScale engine log in Loki (Engine log selector at the top). Needs a log collector that joins multi-line engine log entries (lines that do not start with a timestamp) into one entry. The engine log contains user names and the filter values of each query.",
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 74
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 200,
+          "expr": "$engine_log_selector |~ \"queryId=${query_id}[,}]\" |~ \"Received (MDX|PGSQL) query|Executing SQL Query\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
       "type": "row",
       "title": "Aggregate candidates and compression score (needs the AtScale engine log in Loki)",
-      "id": 22,
+      "id": 23,
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 74
+        "y": 88
       },
       "panels": []
     },
     {
       "type": "table",
       "title": "Aggregate candidates by dataset and grain",
-      "id": 23,
+      "id": 24,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2077,7 +2133,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 75
+        "y": 89
       },
       "targets": [
         {
@@ -2229,7 +2285,7 @@
     {
       "type": "timeseries",
       "title": "Candidates below the compression threshold",
-      "id": 24,
+      "id": 25,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2239,7 +2295,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 75
+        "y": 89
       },
       "interval": "5m",
       "targets": [
@@ -2281,7 +2337,7 @@
     {
       "type": "table",
       "title": "Aggregate candidates per query",
-      "id": 25,
+      "id": 26,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2291,7 +2347,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 84
+        "y": 98
       },
       "targets": [
         {
@@ -2425,7 +2481,7 @@
     {
       "type": "table",
       "title": "Unoptimized queries by runtime and compression score",
-      "id": 26,
+      "id": 27,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2435,7 +2491,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 94
+        "y": 108
       },
       "targets": [
         {
@@ -2596,7 +2652,7 @@
     {
       "type": "barchart",
       "title": "Unoptimized queries by runtime, stacked by compression score",
-      "id": 27,
+      "id": 28,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2606,7 +2662,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 94
+        "y": 108
       },
       "targets": [
         {
@@ -2745,7 +2801,7 @@
     {
       "type": "table",
       "title": "Aggregate suggestions for slow queries",
-      "id": 28,
+      "id": 29,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -2755,7 +2811,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 102
+        "y": 116
       },
       "targets": [
         {
@@ -3016,20 +3072,20 @@
     {
       "type": "row",
       "title": "Warehouse connection queue (needs the AtScale engine log in Loki)",
-      "id": 29,
+      "id": 30,
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 114
+        "y": 128
       },
       "panels": []
     },
     {
       "type": "timeseries",
       "title": "Deepest place in the warehouse connection queue",
-      "id": 30,
+      "id": 31,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -3039,7 +3095,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 115
+        "y": 129
       },
       "interval": "5m",
       "targets": [
@@ -3095,7 +3151,7 @@
     {
       "type": "timeseries",
       "title": "Requests that queued behind others, by requester",
-      "id": 31,
+      "id": 32,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -3105,7 +3161,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 115
+        "y": 129
       },
       "interval": "5m",
       "targets": [
@@ -3164,7 +3220,7 @@
     {
       "type": "table",
       "title": "Warehouse connection queue by connection and requester",
-      "id": 32,
+      "id": 33,
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -3174,7 +3230,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 123
+        "y": 137
       },
       "targets": [
         {
