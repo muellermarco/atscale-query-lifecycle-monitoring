@@ -1,0 +1,53 @@
+# Elastic Agent (standalone) inputs for the AtScale engine log and the query exporter.
+# Add them to the inputs of your agent policy. Needs the kubernetes provider (node scope) and
+# the container log folders (/var/log/containers, /var/log/pods) mounted into the agent.
+# - engine:   one event per multi-line engine entry (a new entry starts with a timestamp)
+#             -> data stream logs-atscale.engine-default, ingest pipeline atscale-engine
+# - exporter: one JSON line per query -> logs-atscale.exporter-default, ingest pipeline atscale-exporter
+# Change the container names if yours differ ("engine" is the AtScale chart's engine container).
+inputs:
+  - id: atscale-engine-${kubernetes.container.id}
+    type: filestream
+    use_output: default
+    condition: ${kubernetes.container.name} == 'engine'
+    data_stream:
+      namespace: default
+    streams:
+      - id: atscale-engine-${kubernetes.container.id}
+        data_stream:
+          dataset: atscale.engine
+          type: logs
+        paths:
+          - /var/log/containers/*${kubernetes.container.id}.log
+        prospector.scanner.symlinks: true
+        pipeline: atscale-engine
+        parsers:
+          - container:
+              stream: all
+              format: auto
+          - multiline:
+              type: pattern
+              pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} '
+              negate: true
+              match: after
+              max_lines: 2000
+              timeout: 3s
+  - id: atscale-exporter-${kubernetes.container.id}
+    type: filestream
+    use_output: default
+    condition: ${kubernetes.container.name} == 'exporter'
+    data_stream:
+      namespace: default
+    streams:
+      - id: atscale-exporter-${kubernetes.container.id}
+        data_stream:
+          dataset: atscale.exporter
+          type: logs
+        paths:
+          - /var/log/containers/*${kubernetes.container.id}.log
+        prospector.scanner.symlinks: true
+        pipeline: atscale-exporter
+        parsers:
+          - container:
+              stream: all
+              format: auto

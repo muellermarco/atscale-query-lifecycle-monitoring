@@ -22,6 +22,7 @@ AtScale records four phases for every query: Inbound Query, Planning, Outbound a
 - [Show the query text of one query](#show-the-query-text-of-one-query)
 - [Show the trace of one query in Tempo](#show-the-trace-of-one-query-in-tempo)
 - [Compare with a dashboard from engine telemetry only](#compare-with-a-dashboard-from-engine-telemetry-only)
+- [Use Elasticsearch for logs](#use-elasticsearch-for-logs)
 - [Find out why queries missed aggregates](#find-out-why-queries-missed-aggregates)
 - [See the compression score of aggregate candidates](#see-the-compression-score-of-aggregate-candidates)
 - [See the warehouse connection queue](#see-the-warehouse-connection-queue)
@@ -264,6 +265,44 @@ It needs:
 - Loki with the engine log, joined to multi-line entries.
 
 With the Helm chart, set `dashboard.engineTelemetry: true` to ship it next to the main dashboard. To change it, edit `dashboard/generate_engine.py` and run `python3 dashboard/generate_engine.py`.
+
+## Use Elasticsearch for logs
+
+If you keep logs in Elasticsearch and metrics in Prometheus, use the dashboard "AtScale query lifecycle (Elasticsearch logs)" (`dashboard/atscale-query-lifecycle-elasticsearch.json`). It has the same Prometheus panels. Every panel that reads Loki in the main dashboard reads Elasticsearch instead. Tested with Elasticsearch and Elastic Agent 8.19 and Grafana 13.2.
+
+The folder `deploy/elastic` has what Elasticsearch needs. The ingest pipelines parse the logs when they arrive. That replaces the LogQL parsing in the Loki dashboard.
+
+| File | Purpose |
+|---|---|
+| `pipeline-atscale-engine.json` | Ingest pipeline for the engine log: query ID, inbound and outbound query text, queue place, connection, aggregate candidate score, dataset and grain |
+| `pipeline-atscale-exporter.json` | Ingest pipeline for the exporter's JSON lines, plus the runtime bucket and the join key the dashboard needs |
+| `component-template-atscale-logs-mappings.json` | Field types for the `atscale.*` fields |
+| `index-template-logs-atscale.json` | Index template for the data streams `logs-atscale.*-*` |
+| `agent-inputs.yml` | Elastic Agent inputs for the engine and exporter containers, with the multiline setting for the engine log |
+
+To set it up:
+
+1. Load the pipelines:
+   `PUT _ingest/pipeline/atscale-engine` with `pipeline-atscale-engine.json`, and `PUT _ingest/pipeline/atscale-exporter` with `pipeline-atscale-exporter.json`.
+2. Load the field types: `PUT _component_template/atscale-logs@mappings` with `component-template-atscale-logs-mappings.json`.
+3. Optional: put your retention policy and replica count into `PUT _component_template/atscale-logs@settings`.
+4. Load the index template: `PUT _index_template/logs-atscale` with `index-template-logs-atscale.json`.
+5. Add the inputs from `agent-inputs.yml` to your Elastic Agent policy.
+
+   Result: documents arrive in `logs-atscale.engine-default` and `logs-atscale.exporter-default`.
+
+6. In Grafana, add two Elasticsearch data sources with the time field `@timestamp`. Name them so that they contain "engine" and "exporter". The dashboard finds them by name.
+
+   | Data source | Index | Log message field |
+   |---|---|---|
+   | Engine log | `logs-atscale.engine-*` | `atscale.msg` |
+   | Exporter | `logs-atscale.exporter-*` | `message` |
+
+7. Import the dashboard and select the two data sources at the top.
+
+Load the pipelines (step 1) before the agent sends data. Documents that arrive earlier are stored without the `atscale.*` fields.
+
+To filter the engine log by namespace, enter a Lucene query in `Engine log filter`, for example `kubernetes.namespace:atscale`. The ingest pipelines compute the runtime and score buckets that `dashboard/generate.py` uses. If you change the buckets there, change the scripts in both pipelines too. With the Helm chart, set `dashboard.elasticsearch: true` to ship this dashboard.
 
 ## Find out why queries missed aggregates
 

@@ -1,0 +1,36 @@
+{
+  "description": "AtScale query exporter: one JSON line per query (event atscale_query) or per aggregate suggestion (event atscale_uda_suggestion). Fields go under atscale.*, @timestamp is the query start.",
+  "processors": [
+    {
+      "json": {
+        "field": "message",
+        "target_field": "atscale",
+        "ignore_failure": true
+      }
+    },
+    {
+      "date": {
+        "field": "atscale.start",
+        "formats": [
+          "ISO8601"
+        ],
+        "target_field": "@timestamp",
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "if": "ctx.atscale?.event == null",
+        "field": "atscale.event",
+        "value": "exporter_log"
+      }
+    },
+    {
+      "script": {
+        "description": "Runtime bucket per query and join key (query id / fact dataset) for the Grafana tables; buckets match dashboard/generate.py",
+        "if": "ctx.atscale != null",
+        "source": "def a = ctx.atscale; if (a.event == 'atscale_query' && a.duration_ms != null) { double d = ((Number) a.duration_ms).doubleValue(); a.runtime_bucket = d < 1000 ? '1. under 1 s' : d < 5000 ? '2. 1 to 5 s' : d < 10000 ? '3. 5 to 10 s' : d < 30000 ? '4. 10 to 30 s' : '5. 30 s and more'; } if (a.event == 'atscale_uda_suggestion' && a.query_id != null && a.dataset != null) { a.join_key = a.query_id + '/' + a.dataset; }"
+      }
+    }
+  ]
+}

@@ -48,6 +48,8 @@ dashboard:
   enabled: false
   # Also ship "AtScale queries from engine telemetry" (needs Tempo with the AtScale traces, and Loki).
   engineTelemetry: false
+  # Also ship "AtScale query lifecycle (Elasticsearch logs)" for logs in Elasticsearch (see deploy/elastic).
+  elasticsearch: false
   labels:
     grafana_dashboard: "1"
   # For example grafana_folder: AtScale, if your Grafana sidecar sets folderAnnotation: grafana_folder

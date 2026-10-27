@@ -1,0 +1,3826 @@
+{
+  "uid": "atscale-query-lifecycle-es",
+  "title": "AtScale query lifecycle (Elasticsearch logs)",
+  "description": "Inbound Query, Planning, Outbound and Result Processing per AtScale query, from the AtScale query history. Sample code, provided as is, not supported by AtScale. Logs from Elasticsearch.",
+  "tags": [
+    "atscale",
+    "queries",
+    "performance",
+    "elasticsearch"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "es_engine",
+        "label": "Elasticsearch engine log",
+        "type": "datasource",
+        "query": "elasticsearch",
+        "regex": "/engine/i",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "es_exporter",
+        "label": "Elasticsearch exporter",
+        "type": "datasource",
+        "query": "elasticsearch",
+        "regex": "/exporter/i",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "engine_filter",
+        "label": "Engine log filter (Lucene)",
+        "type": "textbox",
+        "query": "*",
+        "current": {
+          "text": "*",
+          "value": "*"
+        },
+        "hide": 0
+      },
+      {
+        "name": "tempo",
+        "label": "Tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "compression_threshold",
+        "label": "Compression threshold",
+        "type": "textbox",
+        "query": "3",
+        "current": {
+          "text": "3",
+          "value": "3"
+        },
+        "hide": 0
+      },
+      {
+        "name": "min_runtime_ms",
+        "label": "Min runtime (ms)",
+        "type": "textbox",
+        "query": "1000",
+        "current": {
+          "text": "1000",
+          "value": "1000"
+        },
+        "hide": 0
+      },
+      {
+        "name": "max_runtime_ms",
+        "label": "Max runtime (ms)",
+        "type": "textbox",
+        "query": "3600000",
+        "current": {
+          "text": "3600000",
+          "value": "3600000"
+        },
+        "hide": 0
+      },
+      {
+        "name": "min_score",
+        "label": "Min compression score",
+        "type": "textbox",
+        "query": "0",
+        "current": {
+          "text": "0",
+          "value": "0"
+        },
+        "hide": 0
+      },
+      {
+        "name": "max_score",
+        "label": "Max compression score",
+        "type": "textbox",
+        "query": "1000000",
+        "current": {
+          "text": "1000000",
+          "value": "1000000"
+        },
+        "hide": 0
+      },
+      {
+        "name": "query_id",
+        "label": "Query ID",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      },
+      {
+        "name": "env",
+        "label": "Instance",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(atscale_query_duration_seconds_count, env)",
+          "refId": "env"
+        },
+        "definition": "label_values(atscale_query_duration_seconds_count, env)",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
+        "sort": 1
+      },
+      {
+        "name": "query_type",
+        "label": "Query type",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(atscale_query_duration_seconds_count{env=~\"$env\"}, query_type)",
+          "refId": "query_type"
+        },
+        "definition": "label_values(atscale_query_duration_seconds_count{env=~\"$env\"}, query_type)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "sort": 1,
+        "current": {
+          "text": [
+            "User"
+          ],
+          "value": [
+            "User"
+          ],
+          "selected": true
+        }
+      },
+      {
+        "name": "catalog",
+        "label": "Catalog",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(atscale_query_duration_seconds_count{env=~\"$env\"}, catalog)",
+          "refId": "catalog"
+        },
+        "definition": "label_values(atscale_query_duration_seconds_count{env=~\"$env\"}, catalog)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "sort": 1
+      },
+      {
+        "name": "model",
+        "label": "Model",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(atscale_query_duration_seconds_count{env=~\"$env\",catalog=~\"$catalog\"}, model)",
+          "refId": "model"
+        },
+        "definition": "label_values(atscale_query_duration_seconds_count{env=~\"$env\",catalog=~\"$catalog\"}, model)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "sort": 1
+      },
+      {
+        "name": "optimization",
+        "label": "Optimization",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(atscale_query_duration_seconds_count{env=~\"$env\"}, optimization)",
+          "refId": "optimization"
+        },
+        "definition": "label_values(atscale_query_duration_seconds_count{env=~\"$env\"}, optimization)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "sort": 1
+      },
+      {
+        "name": "status",
+        "label": "Status",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(atscale_query_duration_seconds_count{env=~\"$env\"}, status)",
+          "refId": "status"
+        },
+        "definition": "label_values(atscale_query_duration_seconds_count{env=~\"$env\"}, status)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "sort": 1
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Overview for the selected range",
+      "id": 1,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Queries",
+      "id": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Queries that finished in the selected range (from the AtScale query history).",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range]))",
+          "refId": "A",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Avg duration",
+      "id": 3,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "End-to-end server time per query: Inbound Query + Planning + Outbound + Result Processing.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(increase(atscale_query_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range])) / sum(increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range]))",
+          "refId": "A",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "p50",
+      "id": 4,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Median, estimated from histogram buckets.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.50, sum by (le) (increase(atscale_query_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range])))",
+          "refId": "A",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "p95",
+      "id": 5,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "95th percentile, estimated from histogram buckets.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (increase(atscale_query_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range])))",
+          "refId": "A",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Aggs or cache",
+      "id": 6,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Share of queries AtScale answered from an aggregate table or the query cache. Queries that never reached the warehouse are left out.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",optimization!=\"none\"}[$__range])) / sum(increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason!=\"no_warehouse\"}[$__range]))",
+          "refId": "A",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Exporter up",
+      "id": 7,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "1 = the last poll of every selected AtScale instance succeeded. Always shows the last 5 minutes, whatever the dashboard time range.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "min(atscale_query_exporter_up{env=~\"$env\"})",
+          "refId": "A",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "5m"
+    },
+    {
+      "type": "row",
+      "title": "Where the time goes",
+      "id": 8,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "Average time per phase",
+      "id": 9,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Average per query. Outbound is split into the time spent waiting before the warehouse call (connection pool, queueing, SQL generation) and the time the warehouse subqueries ran (parallel subqueries counted once).",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])) / sum by (phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "refId": "A",
+          "legendFormat": "{{phase}}",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "namePlacement": "left",
+        "valueMode": "color",
+        "minVizWidth": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Inbound Query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Planning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Outbound wait"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Outbound warehouse"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Result Processing"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "piechart",
+      "title": "Share of total query time",
+      "id": 10,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Which phase consumes most of the summed server time in the range.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "refId": "A",
+          "legendFormat": "{{phase}}",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "values": [
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Inbound Query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Planning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Outbound wait"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Outbound warehouse"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Result Processing"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Phase statistics",
+      "id": 11,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Average and percentiles per phase. Percentiles are estimated from histogram buckets.",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])) / sum by (phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "refId": "A",
+          "legendFormat": "{{phase}}",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.5, sum by (le, phase) (increase(atscale_query_phase_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range]))), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "refId": "B",
+          "legendFormat": "{{phase}}",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.95, sum by (le, phase) (increase(atscale_query_phase_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range]))), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "refId": "C",
+          "legendFormat": "{{phase}}",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.99, sum by (le, phase) (increase(atscale_query_phase_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range]))), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "refId": "D",
+          "legendFormat": "{{phase}}",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "phase",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true
+            },
+            "renameByName": {
+              "phase": "Phase",
+              "Value #A": "Average",
+              "Value #B": "p50",
+              "Value #C": "p95",
+              "Value #D": "p99"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Average",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Average time per phase over time (stacked)",
+      "id": 12,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Stack height = average query duration in that interval. Gaps mean no queries.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__interval])) / sum by (phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__interval])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "refId": "A",
+          "legendFormat": "{{phase}}",
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Inbound Query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Planning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Outbound wait"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Outbound warehouse"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Result Processing"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "row",
+      "title": "Which catalogs and models drive it",
+      "id": 13,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Catalogs and models, slowest first",
+      "id": 14,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Per catalog and model. A high warehouse share with few aggregate hits points to missing aggregates; high planning points to model complexity; high outbound wait points to connection or queue limits.",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (catalog, model) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range]))",
+          "refId": "A",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (catalog, model) (increase(atscale_query_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range])) / sum by (catalog, model) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range]))",
+          "refId": "B",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (catalog, model, le) (increase(atscale_query_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range])))",
+          "refId": "C",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (catalog, model) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=\"planning\"}[$__range])) / sum by (catalog, model) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=\"planning\"}[$__range]))",
+          "refId": "D",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (catalog, model) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=\"outbound_wait\"}[$__range])) / sum by (catalog, model) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=\"outbound_wait\"}[$__range]))",
+          "refId": "E",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (catalog, model) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=\"warehouse\"}[$__range])) / sum by (catalog, model) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",phase=\"warehouse\"}[$__range]))",
+          "refId": "F",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (catalog, model) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",optimization!=\"none\"}[$__range])) / sum by (catalog, model) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range]))",
+          "refId": "G",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (catalog, model) (increase(atscale_query_subqueries_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range])) / sum by (catalog, model) (increase(atscale_query_subqueries_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__range]))",
+          "refId": "H",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Queries",
+              "Value #B": "Avg total",
+              "Value #C": "p95 total",
+              "Value #D": "Avg planning",
+              "Value #E": "Avg outbound wait",
+              "Value #F": "Avg warehouse",
+              "Value #G": "Aggregate or cache hits",
+              "Value #H": "Avg subqueries",
+              "catalog": "Catalog",
+              "model": "Model"
+            },
+            "indexByName": {
+              "catalog": 0,
+              "model": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "Value #E": 6,
+              "Value #F": 7,
+              "Value #G": 8,
+              "Value #H": 9
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Queries",
+                "config": {
+                  "id": "lowerOrEqual",
+                  "options": {
+                    "value": 0
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Avg total",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3,
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Queries"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg subqueries"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Aggregate or cache hits"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg total"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Average time per phase by optimization",
+      "id": 15,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "AGGS = answered from an aggregate table, CACHE = query cache, none = raw tables. The warehouse bar shows what aggregates save.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (optimization, phase) (increase(atscale_query_phase_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])) / sum by (optimization, phase) (increase(atscale_query_phase_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",status=~\"$status\",phase=~\"inbound|planning|outbound_wait|warehouse|result_processing\"}[$__range])), \"phase\", \"Inbound Query\", \"phase\", \"inbound\"), \"phase\", \"Planning\", \"phase\", \"planning\"), \"phase\", \"Outbound wait\", \"phase\", \"outbound_wait\"), \"phase\", \"Outbound warehouse\", \"phase\", \"warehouse\"), \"phase\", \"Result Processing\", \"phase\", \"result_processing\"), \"phase\", \"Outbound (total)\", \"phase\", \"outbound\")",
+          "refId": "A",
+          "legendFormat": "{{optimization}} \u00b7 {{phase}}",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "decimals": 3,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "heatmap",
+      "title": "Query duration distribution",
+      "id": 16,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "How many queries fell into each duration bucket per interval. Bands far above the main cluster are the outliers to inspect in the AtScale Queries page.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 42
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (le) (increase(atscale_query_duration_seconds_bucket{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\"}[$__interval]))",
+          "refId": "A",
+          "legendFormat": "{{le}}",
+          "format": "heatmap"
+        }
+      ],
+      "options": {
+        "calculate": false,
+        "yAxis": {
+          "unit": "s"
+        },
+        "cellGap": 1,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Blues",
+          "steps": 64
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": true
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "Why queries missed aggregates and cache",
+      "id": 17,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "Queries without aggregate or cache, by reason",
+      "id": 18,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Why queries ran without an aggregate or the cache. Aggregate created by this query: the first run of a new combination of attributes and measures; AtScale created an aggregate while it ran, so the next run can use it. No aggregate created: investigate, for example an exact distinct count that no aggregate holds, or a catalog deployed while the query ran. No warehouse query: answered without a warehouse query (metadata). AtScale system query: AtScale's own queries, for example aggregate builds and statistics. Unclassified: the exporter could not read the aggregates API.",
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (miss_reason) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason=~\".+\",miss_reason!=\"optimized\"}[$__range])), \"miss_reason\", \"Aggregate created by this query\", \"miss_reason\", \"aggregate_created\"), \"miss_reason\", \"No aggregate created: investigate\", \"miss_reason\", \"no_aggregate_created\"), \"miss_reason\", \"No warehouse query\", \"miss_reason\", \"no_warehouse\"), \"miss_reason\", \"AtScale system query\", \"miss_reason\", \"system\"), \"miss_reason\", \"Failed\", \"miss_reason\", \"failed\"), \"miss_reason\", \"Unclassified\", \"miss_reason\", \"unclassified\")",
+          "refId": "A",
+          "legendFormat": "{{miss_reason}}",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "valueMode": "color",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B7B7B7"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Aggregate created by this query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "No aggregate created: investigate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "No warehouse query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AtScale system query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CA95E5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unclassified"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B7B7B7"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Misses by catalog, model and reason",
+      "id": 19,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Start with the rows marked No aggregate created: investigate. Why queries ran without an aggregate or the cache. Aggregate created by this query: the first run of a new combination of attributes and measures; AtScale created an aggregate while it ran, so the next run can use it. No aggregate created: investigate, for example an exact distinct count that no aggregate holds, or a catalog deployed while the query ran. No warehouse query: answered without a warehouse query (metadata). AtScale system query: AtScale's own queries, for example aggregate builds and statistics. Unclassified: the exporter could not read the aggregates API.",
+      "gridPos": {
+        "h": 9,
+        "w": 15,
+        "x": 9,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (catalog, model, miss_reason) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason=~\".+\",miss_reason!=\"optimized\"}[$__range])), \"miss_reason\", \"Aggregate created by this query\", \"miss_reason\", \"aggregate_created\"), \"miss_reason\", \"No aggregate created: investigate\", \"miss_reason\", \"no_aggregate_created\"), \"miss_reason\", \"No warehouse query\", \"miss_reason\", \"no_warehouse\"), \"miss_reason\", \"AtScale system query\", \"miss_reason\", \"system\"), \"miss_reason\", \"Failed\", \"miss_reason\", \"failed\"), \"miss_reason\", \"Unclassified\", \"miss_reason\", \"unclassified\")",
+          "refId": "A",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (catalog, model, miss_reason) (increase(atscale_query_duration_seconds_sum{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason=~\".+\",miss_reason!=\"optimized\"}[$__range])) / sum by (catalog, model, miss_reason) (increase(atscale_query_duration_seconds_count{env=~\"$env\",query_type=~\"$query_type\",catalog=~\"$catalog\",model=~\"$model\",optimization=~\"$optimization\",status=~\"$status\",miss_reason=~\".+\",miss_reason!=\"optimized\"}[$__range])), \"miss_reason\", \"Aggregate created by this query\", \"miss_reason\", \"aggregate_created\"), \"miss_reason\", \"No aggregate created: investigate\", \"miss_reason\", \"no_aggregate_created\"), \"miss_reason\", \"No warehouse query\", \"miss_reason\", \"no_warehouse\"), \"miss_reason\", \"AtScale system query\", \"miss_reason\", \"system\"), \"miss_reason\", \"Failed\", \"miss_reason\", \"failed\"), \"miss_reason\", \"Unclassified\", \"miss_reason\", \"unclassified\")",
+          "refId": "B",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "catalog": "Catalog",
+              "model": "Model",
+              "miss_reason": "Reason",
+              "Value #A": "Queries",
+              "Value #B": "Avg total"
+            },
+            "indexByName": {
+              "catalog": 0,
+              "model": 1,
+              "miss_reason": 2,
+              "Value #A": 3,
+              "Value #B": 4
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Queries",
+                "config": {
+                  "id": "lowerOrEqual",
+                  "options": {
+                    "value": 0
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Queries",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Queries"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg total"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Single queries (needs the exporter's query log in Elasticsearch)",
+      "id": 20,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 61
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Slowest queries",
+      "id": 21,
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "${es_exporter}"
+      },
+      "description": "One row per query from the exporter's JSON query log, slowest first. Click a Query ID to show its inbound and outbound query text below or its trace in Tempo, or search for it on the Queries page in AtScale Design Center. The other panels work without Elasticsearch. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 62
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_exporter}"
+          },
+          "refId": "A",
+          "query": "atscale.event:atscale_query AND atscale.env:${env:lucene} AND atscale.query_type:${query_type:lucene} AND atscale.catalog:${catalog:lucene} AND atscale.model:${model:lucene} AND atscale.optimization:${optimization:lucene} AND atscale.status:${status:lucene}",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "raw_data",
+              "settings": {
+                "size": "1000"
+              },
+              "id": "1"
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "atscale.start",
+                "atscale.query_id",
+                "atscale.catalog",
+                "atscale.model",
+                "atscale.query_type",
+                "atscale.optimization",
+                "atscale.miss_reason",
+                "atscale.status",
+                "atscale.duration_ms",
+                "atscale.inbound_ms",
+                "atscale.planning_ms",
+                "atscale.outbound_wait_ms",
+                "atscale.warehouse_ms",
+                "atscale.result_processing_ms",
+                "atscale.subqueries"
+              ]
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^atscale\\.(.*)$",
+            "renamePattern": "$1"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "start": 0,
+              "query_id": 1,
+              "catalog": 2,
+              "model": 3,
+              "query_type": 4,
+              "optimization": 5,
+              "miss_reason": 6,
+              "status": 7,
+              "duration_ms": 8,
+              "inbound_ms": 9,
+              "planning_ms": 10,
+              "outbound_wait_ms": 11,
+              "warehouse_ms": 12,
+              "result_processing_ms": 13,
+              "subqueries": 14
+            },
+            "renameByName": {
+              "start": "Start (UTC)",
+              "query_id": "Query ID",
+              "catalog": "Catalog",
+              "model": "Model",
+              "query_type": "Type",
+              "optimization": "Optimization",
+              "miss_reason": "Miss reason",
+              "status": "Status",
+              "duration_ms": "Total",
+              "inbound_ms": "Inbound Query",
+              "planning_ms": "Planning",
+              "outbound_wait_ms": "Outbound wait",
+              "warehouse_ms": "Outbound warehouse",
+              "result_processing_ms": "Result Processing",
+              "subqueries": "Subqueries"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Total",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1,
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Subqueries"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Query ID"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 300
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show query text",
+                    "url": "/d/atscale-query-lifecycle-es?${__url_time_range}&${datasource:queryparam}&${es_engine:queryparam}&${es_exporter:queryparam}&${engine_filter:queryparam}&${env:queryparam}&${query_type:queryparam}&var-query_id=${__value.raw}"
+                  },
+                  {
+                    "title": "Show trace (Tempo)",
+                    "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22t%22%3A%7B%22datasource%22%3A%22${tempo}%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22${tempo}%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7Bname%3D%5C%22${__value.raw}%5C%22%7D%22%2C%22limit%22%3A20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-24h%22%2C%22to%22%3A%22now%22%7D%7D%7D",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Query text for $query_id",
+      "id": 22,
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "${es_engine}"
+      },
+      "description": "The inbound MDX, DAX or SQL that the client sent and the outbound SQL that AtScale sent to the warehouse, for the Query ID field at the top. Click a Query ID in Slowest queries to fill it. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top). Needs a log collector that joins multi-line engine log entries (lines that do not start with a timestamp) into one entry. The engine log contains user names and the filter values of each query. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 74
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "A",
+          "query": "atscale.query_id:\"$query_id\" AND atscale.event:(inbound OR outbound) AND ($engine_filter)",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "logs",
+              "settings": {
+                "limit": "200"
+              },
+              "id": "1"
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Warehouse connection queue for $query_id",
+      "id": 23,
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "${es_engine}"
+      },
+      "description": "Warehouse queries of the query in the Query ID field, by connection, and the deepest place in the connection queue. 1 means no request waited; a higher place means this query waited behind others. Compare with Outbound wait in Slowest queries. Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); only the time range applies. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "A",
+          "query": "atscale.query_id:\"$query_id\" AND atscale.event:queue AND ($engine_filter)",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "count",
+              "id": "1"
+            },
+            {
+              "type": "max",
+              "field": "atscale.queue_position",
+              "id": "2"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "10",
+              "type": "terms",
+              "field": "atscale.connection",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "B",
+          "query": "atscale.query_id:\"$query_id\" AND atscale.event:queue AND ($engine_filter) AND atscale.queue_position:>1",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "cardinality",
+              "field": "atscale.request_id",
+              "id": "1"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "10",
+              "type": "terms",
+              "field": "atscale.connection",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            }
+          ]
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "atscale.connection": "Connection",
+              "Count": "Warehouse queries",
+              "Unique Count": "Queued behind others",
+              "Max": "Deepest place"
+            },
+            "indexByName": {
+              "atscale.connection": 0,
+              "Count": 1,
+              "Unique Count": 2,
+              "Max": 3
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Deepest place"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 2
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Aggregate candidates and compression score (needs the AtScale engine log in Elasticsearch)",
+      "id": 24,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 93
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Aggregate candidates by dataset and grain",
+      "id": 25,
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "${es_engine}"
+      },
+      "description": "Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); the engine log has no catalog or model, so only the time range applies. Below threshold uses the Compression threshold field at the top. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 94
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "A",
+          "query": "atscale.event:aggregate_candidate AND atscale.score:[$min_score TO $max_score] AND ($engine_filter)",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "count",
+              "id": "1"
+            },
+            {
+              "type": "avg",
+              "field": "atscale.score",
+              "id": "2"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "10",
+              "type": "terms",
+              "field": "atscale.dataset",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            },
+            {
+              "id": "11",
+              "type": "terms",
+              "field": "atscale.grain",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "200"
+              }
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "B",
+          "query": "atscale.event:aggregate_candidate AND atscale.score:[$min_score TO $max_score] AND ($engine_filter) AND atscale.score:<$compression_threshold",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "cardinality",
+              "field": "atscale.candidate",
+              "id": "1"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "10",
+              "type": "terms",
+              "field": "atscale.dataset",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            },
+            {
+              "id": "11",
+              "type": "terms",
+              "field": "atscale.grain",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "200"
+              }
+            }
+          ]
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "atscale.dataset": "Fact dataset",
+              "atscale.grain": "Aggregate grain",
+              "Count": "Candidates",
+              "Unique Count": "Below threshold",
+              "Average": "Compression score"
+            },
+            "indexByName": {
+              "atscale.dataset": 0,
+              "atscale.grain": 1,
+              "Count": 2,
+              "Unique Count": 3,
+              "Average": 4
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Compression score"
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Compression score"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 3
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Below threshold"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Candidates below the compression threshold",
+      "id": 26,
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "${es_engine}"
+      },
+      "description": "Aggregate candidates per interval whose compression score is below the Compression threshold field, by fact dataset. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); the engine log has no catalog or model, so only the time range applies. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 94
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "A",
+          "query": "atscale.event:aggregate_candidate AND atscale.score:[$min_score TO $max_score] AND ($engine_filter) AND atscale.score:<$compression_threshold",
+          "alias": "{{term atscale.dataset}}",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "count",
+              "id": "1"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "10",
+              "type": "terms",
+              "field": "atscale.dataset",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            },
+            {
+              "id": "11",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Aggregate candidates per query",
+      "id": 27,
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "${es_engine}"
+      },
+      "description": "One row per aggregate candidate, lowest score first. Search the Query ID in Slowest queries or on the Queries page in AtScale Design Center. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); the engine log has no catalog or model, so only the time range applies. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 103
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "A",
+          "query": "atscale.event:aggregate_candidate AND atscale.score:[$min_score TO $max_score] AND ($engine_filter)",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "raw_data",
+              "settings": {
+                "size": "1000"
+              },
+              "id": "1"
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "@timestamp",
+                "atscale.query_id",
+                "atscale.dataset",
+                "atscale.grain",
+                "atscale.score",
+                "atscale.candidate"
+              ]
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^atscale\\.(.*)$",
+            "renamePattern": "$1"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "@timestamp": 0,
+              "query_id": 1,
+              "dataset": 2,
+              "grain": 3,
+              "score": 4,
+              "candidate": 5
+            },
+            "renameByName": {
+              "@timestamp": "Time",
+              "query_id": "Query ID",
+              "dataset": "Fact dataset",
+              "grain": "Aggregate grain",
+              "score": "Compression score",
+              "candidate": "Candidate ID"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Compression score"
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Compression score"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 3
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Unoptimized queries by runtime and compression score",
+      "id": 28,
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Queries without aggregate or cache, counted by runtime (rows) and by the compression score of the aggregate candidates the engine proposed for them (columns). A query with candidates in several score ranges counts in each. Filters: Min/Max runtime (ms) and Min/Max compression score at the top. Needs both the exporter log and the AtScale engine log in Elasticsearch. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); the engine log has no catalog or model, so only the time range applies. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 113
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_exporter}"
+          },
+          "refId": "A",
+          "query": "atscale.event:atscale_query AND atscale.env:${env:lucene} AND atscale.query_type:${query_type:lucene} AND atscale.catalog:${catalog:lucene} AND atscale.model:${model:lucene} AND atscale.optimization:none AND atscale.status:successful AND atscale.duration_ms:[$min_runtime_ms TO $max_runtime_ms]",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "raw_data",
+              "settings": {
+                "size": "5000"
+              },
+              "id": "1"
+            }
+          ],
+          "bucketAggs": []
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "B",
+          "query": "atscale.event:aggregate_candidate AND atscale.score:[$min_score TO $max_score] AND ($engine_filter)",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "raw_data",
+              "settings": {
+                "size": "5000"
+              },
+              "id": "1"
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "atscale.query_id",
+                "atscale.runtime_bucket",
+                "atscale.score_bucket"
+              ]
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^atscale\\.(.*)$",
+            "renamePattern": "$1"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "query_id",
+            "mode": "inner"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(query_id|runtime_bucket|score_bucket)$"
+            }
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "runtime_bucket": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "score_bucket": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "query_id": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "distinctCount"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "score_bucket",
+            "rowField": "runtime_bucket",
+            "valueField": "query_id (distinctCount)",
+            "emptyValue": "zero"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "runtime_bucket\\score_bucket": 0,
+              "under 1": 1,
+              "1 to 3": 2,
+              "3 to 10": 3,
+              "10 to 100": 4,
+              "100 and more": 5
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^runtime_bucket.*$",
+            "renamePattern": "Runtime"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Runtime"
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-BlYlRd"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "string"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "displayName",
+                "value": "Runtime \\ compression score"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 170
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Unoptimized queries by runtime, stacked by compression score",
+      "id": 29,
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Queries without aggregate or cache, counted by runtime (rows) and by the compression score of the aggregate candidates the engine proposed for them (columns). A query with candidates in several score ranges counts in each. Filters: Min/Max runtime (ms) and Min/Max compression score at the top. Needs both the exporter log and the AtScale engine log in Elasticsearch. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); the engine log has no catalog or model, so only the time range applies. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 113
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_exporter}"
+          },
+          "refId": "A",
+          "query": "atscale.event:atscale_query AND atscale.env:${env:lucene} AND atscale.query_type:${query_type:lucene} AND atscale.catalog:${catalog:lucene} AND atscale.model:${model:lucene} AND atscale.optimization:none AND atscale.status:successful AND atscale.duration_ms:[$min_runtime_ms TO $max_runtime_ms]",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "raw_data",
+              "settings": {
+                "size": "5000"
+              },
+              "id": "1"
+            }
+          ],
+          "bucketAggs": []
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "B",
+          "query": "atscale.event:aggregate_candidate AND atscale.score:[$min_score TO $max_score] AND ($engine_filter)",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "raw_data",
+              "settings": {
+                "size": "5000"
+              },
+              "id": "1"
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "atscale.query_id",
+                "atscale.runtime_bucket",
+                "atscale.score_bucket"
+              ]
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^atscale\\.(.*)$",
+            "renamePattern": "$1"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "query_id",
+            "mode": "inner"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(query_id|runtime_bucket|score_bucket)$"
+            }
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "runtime_bucket": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "score_bucket": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "query_id": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "distinctCount"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "score_bucket",
+            "rowField": "runtime_bucket",
+            "valueField": "query_id (distinctCount)",
+            "emptyValue": "zero"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "runtime_bucket\\score_bucket": 0,
+              "under 1": 1,
+              "1 to 3": 2,
+              "3 to 10": 3,
+              "10 to 100": 4,
+              "100 and more": 5
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^runtime_bucket.*$",
+            "renamePattern": "Runtime"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Runtime"
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "Aggregate suggestions for slow queries",
+      "id": 30,
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Queries that ran at least Min runtime (ms), joined on the query ID with the aggregate candidates the engine proposed for them that are below the Compression threshold. AtScale does not create those. One row per query and fact dataset; UDA (SML) holds the aggregates: block for that fact dataset, at the grain of the query (its attributes), with the base metrics behind its measures; comments name what was left out. Candidates that meet the threshold are in Aggregate candidates per query. Check before you create it: the query's attributes must be coarser than the rejected grain (for example Fiscal Quarter instead of Day), and calculated measures must be replaced by the base metrics they use. Queries that used an aggregate have no candidates and do not appear. Compression score = rows in the fact dataset / estimated rows of the proposed aggregate, as the AtScale engine logs it for each aggregate candidate (rule R050). With aggregates.create.threshold.enabled, candidates below aggregates.create.compression.threshold (default 3.0) are not created. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); the engine log has no catalog or model, so only the time range applies. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 121
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_exporter}"
+          },
+          "refId": "A",
+          "query": "atscale.event:atscale_uda_suggestion AND atscale.env:${env:lucene} AND atscale.query_type:${query_type:lucene} AND atscale.catalog:${catalog:lucene} AND atscale.model:${model:lucene} AND atscale.duration_ms:[$min_runtime_ms TO $max_runtime_ms]",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "raw_data",
+              "settings": {
+                "size": "1000"
+              },
+              "id": "1"
+            }
+          ],
+          "bucketAggs": []
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "B",
+          "query": "atscale.event:aggregate_candidate AND atscale.score:[$min_score TO $max_score] AND ($engine_filter) AND atscale.score:<$compression_threshold",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "raw_data",
+              "settings": {
+                "size": "1000"
+              },
+              "id": "1"
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "filter": {
+            "id": "byRefId",
+            "options": "A"
+          },
+          "options": {
+            "include": {
+              "names": [
+                "atscale.join_key",
+                "atscale.start",
+                "atscale.query_id",
+                "atscale.catalog",
+                "atscale.model",
+                "atscale.duration_ms",
+                "atscale.miss_reason",
+                "atscale.dataset",
+                "atscale.uda_sml"
+              ]
+            }
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "filter": {
+            "id": "byRefId",
+            "options": "B"
+          },
+          "options": {
+            "include": {
+              "names": [
+                "atscale.join_key",
+                "atscale.grain",
+                "atscale.score"
+              ]
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "atscale.join_key",
+            "mode": "inner"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^atscale\\.(.*)$",
+            "renamePattern": "$1"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(start|query_id|catalog|model|duration_ms|miss_reason|dataset|grain|score|uda_sml)$"
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "duration_ms",
+                "destinationType": "number"
+              },
+              {
+                "targetField": "score",
+                "destinationType": "number"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "start": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "query_id": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "catalog": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "model": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "miss_reason": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "dataset": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "grain": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "uda_sml": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "duration_ms": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "max"
+                ]
+              },
+              "score": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "min"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "start": 0,
+              "query_id": 1,
+              "catalog": 2,
+              "model": 3,
+              "duration_ms (max)": 4,
+              "miss_reason": 5,
+              "dataset": 6,
+              "grain": 7,
+              "score (min)": 8,
+              "uda_sml": 9
+            },
+            "renameByName": {
+              "start": "Start (UTC)",
+              "query_id": "Query ID",
+              "catalog": "Catalog",
+              "model": "Model",
+              "duration_ms (max)": "Runtime",
+              "miss_reason": "Miss reason",
+              "dataset": "Fact dataset",
+              "grain": "Candidate grain",
+              "score (min)": "Compression score",
+              "uda_sml": "UDA (SML)"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Runtime",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Runtime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Compression score"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 3
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UDA (SML)"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 460
+              },
+              {
+                "id": "custom.inspect",
+                "value": true
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Warehouse connection queue (needs the AtScale engine log in Elasticsearch)",
+      "id": 31,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 133
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Deepest place in the warehouse connection queue",
+      "id": 32,
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "${es_engine}"
+      },
+      "description": "Highest queue place per interval and connection. 1 means no request waited. Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); only the time range applies. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 134
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "A",
+          "query": "atscale.event:queue AND ($engine_filter)",
+          "alias": "{{term atscale.connection}}",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "max",
+              "field": "atscale.queue_position",
+              "id": "1"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "10",
+              "type": "terms",
+              "field": "atscale.connection",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            },
+            {
+              "id": "11",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 1,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests that queued behind others, by requester",
+      "id": 33,
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "${es_engine}"
+      },
+      "description": "Warehouse connection requests with a queue place above 1, per interval, by who asked (User query or an AtScale service). Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); only the time range applies. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 134
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "A",
+          "query": "atscale.event:queue AND ($engine_filter) AND atscale.queue_position:>1",
+          "alias": "{{term atscale.requester}}",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "count",
+              "id": "1"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "10",
+              "type": "terms",
+              "field": "atscale.requester",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            },
+            {
+              "id": "11",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "User query"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Warehouse connection queue by connection and requester",
+      "id": 34,
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "${es_engine}"
+      },
+      "description": "Each warehouse query asks the AtScale connection manager for a connection to the data warehouse. The engine logs the request with its place in line: #1 means first in line, a higher place means the request waited behind others. User queries share the connection with AtScale's own services (statistics, aggregate builds, health checks). Deep queues explain a high Outbound wait. Read from the AtScale engine log in Elasticsearch (Engine log filter at the top); only the time range applies. Read from Elasticsearch (data streams logs-atscale.engine / logs-atscale.exporter, fields from the ingest pipelines in deploy/elastic).",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 142
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "A",
+          "query": "atscale.event:queue AND ($engine_filter)",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "count",
+              "id": "1"
+            },
+            {
+              "type": "max",
+              "field": "atscale.queue_position",
+              "id": "2"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "10",
+              "type": "terms",
+              "field": "atscale.connection",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            },
+            {
+              "id": "11",
+              "type": "terms",
+              "field": "atscale.requester",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "${es_engine}"
+          },
+          "refId": "B",
+          "query": "atscale.event:queue AND ($engine_filter) AND atscale.queue_position:>1",
+          "alias": "",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "type": "cardinality",
+              "field": "atscale.request_id",
+              "id": "1"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "10",
+              "type": "terms",
+              "field": "atscale.connection",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            },
+            {
+              "id": "11",
+              "type": "terms",
+              "field": "atscale.requester",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "50"
+              }
+            }
+          ]
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "atscale.connection": "Connection",
+              "atscale.requester": "Requester",
+              "Count": "Requests",
+              "Unique Count": "Queued behind others",
+              "Max": "Deepest place"
+            },
+            "indexByName": {
+              "atscale.connection": 0,
+              "atscale.requester": 1,
+              "Count": 2,
+              "Unique Count": 3,
+              "Max": 4
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Deepest place"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 2
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    }
+  ]
+}

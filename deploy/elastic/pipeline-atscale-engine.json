@@ -1,0 +1,194 @@
+{
+  "description": "AtScale engine log: header, MDC context, inbound/outbound query text, connection queue place, R050 aggregate candidate score. One event = one multi-line engine entry.",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": [
+          "^%{TIMESTAMP_ISO8601:atscale.time} %{LOGLEVEL:log.level} +\\[%{DATA:atscale.thread}\\] \\{%{DATA:atscale.mdc}\\} %{DATA:log.logger} +- %{ANYTHING:atscale.msg}"
+        ],
+        "pattern_definitions": {
+          "ANYTHING": "(?m).*"
+        },
+        "on_failure": [
+          {
+            "set": {
+              "field": "atscale.parse_error",
+              "value": "header"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "date": {
+        "field": "atscale.time",
+        "formats": [
+          "yyyy-MM-dd HH:mm:ss,SSS"
+        ],
+        "timezone": "UTC",
+        "target_field": "@timestamp",
+        "ignore_failure": true
+      }
+    },
+    {
+      "kv": {
+        "field": "atscale.mdc",
+        "field_split": ", ",
+        "value_split": "=",
+        "target_field": "atscale.ctx",
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "field": "atscale.query_id",
+        "copy_from": "atscale.ctx.queryId",
+        "ignore_empty_value": true
+      }
+    },
+    {
+      "set": {
+        "field": "atscale.subquery_id",
+        "copy_from": "atscale.ctx.subqueryId",
+        "ignore_empty_value": true
+      }
+    },
+    {
+      "grok": {
+        "if": "ctx.atscale?.msg != null && ctx.atscale.msg.startsWith('Received ') && ctx.atscale.msg.contains(' query:')",
+        "field": "atscale.msg",
+        "patterns": [
+          "^Received %{WORD:atscale.language} query:\\n%{ANYTHING:atscale.query_text}"
+        ],
+        "pattern_definitions": {
+          "ANYTHING": "(?m).*"
+        },
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "if": "ctx.atscale?.language != null",
+        "field": "atscale.event",
+        "value": "inbound"
+      }
+    },
+    {
+      "lowercase": {
+        "field": "atscale.language",
+        "ignore_missing": true
+      }
+    },
+    {
+      "grok": {
+        "if": "ctx.atscale?.msg != null && ctx.atscale.msg.startsWith('Executing SQL Query')",
+        "field": "atscale.msg",
+        "patterns": [
+          "^Executing SQL Query \\(%{DATA:atscale.dialect}\\):\\n%{ANYTHING:atscale.query_text}"
+        ],
+        "pattern_definitions": {
+          "ANYTHING": "(?m).*"
+        },
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "if": "ctx.atscale?.dialect != null",
+        "field": "atscale.event",
+        "value": "outbound"
+      }
+    },
+    {
+      "grok": {
+        "if": "ctx.atscale?.msg != null && ctx.atscale.msg.contains('going into queue')",
+        "field": "atscale.msg",
+        "patterns": [
+          "^Request \\[%{DATA:atscale.request_id}\\] .*is \\[#%{NUMBER:atscale.queue_position:int}\\] in line",
+          "is \\[#%{NUMBER:atscale.queue_position:int}\\] in line"
+        ],
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "if": "ctx.atscale?.queue_position != null",
+        "field": "atscale.event",
+        "value": "queue"
+      }
+    },
+    {
+      "set": {
+        "if": "ctx.atscale?.queue_position != null",
+        "field": "atscale.connection",
+        "copy_from": "atscale.ctx.conn",
+        "ignore_empty_value": true
+      }
+    },
+    {
+      "set": {
+        "if": "ctx.atscale?.queue_position != null",
+        "field": "atscale.requester",
+        "value": "{{{atscale.ctx.service}}}",
+        "ignore_empty_value": true
+      }
+    },
+    {
+      "set": {
+        "if": "ctx.atscale?.queue_position != null && ctx.atscale.requester == null",
+        "field": "atscale.requester",
+        "value": "User query"
+      }
+    },
+    {
+      "grok": {
+        "if": "ctx.atscale?.msg != null && ctx.atscale.msg.startsWith('R050 candidate ')",
+        "field": "atscale.msg",
+        "patterns": [
+          "^R050 candidate %{NOTSPACE:atscale.candidate}: score=%{NUMBER:atscale.score:float} .*Dataset %{NOTSPACE:atscale.dataset} and (?<atscale.grain>.*?) is "
+        ],
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "if": "ctx.atscale?.score != null",
+        "field": "atscale.event",
+        "value": "aggregate_candidate"
+      }
+    },
+    {
+      "gsub": {
+        "field": "atscale.grain",
+        "pattern": " ,",
+        "replacement": ", ",
+        "ignore_missing": true
+      }
+    },
+    {
+      "set": {
+        "if": "ctx.atscale?.event == 'aggregate_candidate' && (ctx.atscale.grain == null || ctx.atscale.grain == '')",
+        "field": "atscale.grain",
+        "value": "(no keys)"
+      }
+    },
+    {
+      "script": {
+        "description": "Score bucket and join key (query id / fact dataset) for aggregate candidates; buckets match dashboard/generate.py",
+        "if": "ctx.atscale?.event == 'aggregate_candidate' && ctx.atscale.score != null",
+        "source": "def a = ctx.atscale; double s = ((Number) a.score).doubleValue(); a.score_bucket = s < 1 ? 'under 1' : s < 3 ? '1 to 3' : s < 10 ? '3 to 10' : s < 100 ? '10 to 100' : '100 and more'; if (a.query_id != null && a.dataset != null) { a.join_key = a.query_id + '/' + a.dataset; }"
+      }
+    },
+    {
+      "remove": {
+        "field": [
+          "atscale.time",
+          "atscale.mdc"
+        ],
+        "ignore_missing": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "index_patterns": [
+    "logs-atscale.*-*"
+  ],
+  "data_stream": {},
+  "priority": 200,
+  "composed_of": [
+    "logs@mappings",
+    "logs@settings",
+    "ecs@mappings",
+    "atscale-logs@mappings",
+    "atscale-logs@settings"
+  ],
+  "ignore_missing_component_templates": [
+    "atscale-logs@settings"
+  ],
+  "_meta": {
+    "description": "AtScale engine log and query exporter data streams. atscale-logs@settings is optional (ILM policy, replicas)."
+  }
+}

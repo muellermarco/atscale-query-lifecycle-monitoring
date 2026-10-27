@@ -16,4 +16,8 @@ data:
   atscale-query-lifecycle-engine.json: |-
 {{ .Files.Get "files/atscale-query-lifecycle-engine.json" | indent 4 }}
   {{- end }}
+  {{- if .Values.dashboard.elasticsearch }}
+  atscale-query-lifecycle-elasticsearch.json: |-
+{{ .Files.Get "files/atscale-query-lifecycle-elasticsearch.json" | indent 4 }}
+  {{- end }}
 {{- end }}

@@ -1,0 +1,69 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "atscale": {
+          "properties": {
+            "msg": {
+              "type": "match_only_text"
+            },
+            "query_text": {
+              "type": "match_only_text"
+            },
+            "query_id": {
+              "type": "keyword"
+            },
+            "subquery_id": {
+              "type": "keyword"
+            },
+            "request_id": {
+              "type": "keyword"
+            },
+            "join_key": {
+              "type": "keyword"
+            },
+            "runtime_bucket": {
+              "type": "keyword"
+            },
+            "score_bucket": {
+              "type": "keyword"
+            },
+            "queue_position": {
+              "type": "integer"
+            },
+            "score": {
+              "type": "float"
+            },
+            "subqueries": {
+              "type": "integer"
+            },
+            "duration_ms": {
+              "type": "float"
+            },
+            "inbound_ms": {
+              "type": "float"
+            },
+            "planning_ms": {
+              "type": "float"
+            },
+            "outbound_ms": {
+              "type": "float"
+            },
+            "outbound_wait_ms": {
+              "type": "float"
+            },
+            "warehouse_ms": {
+              "type": "float"
+            },
+            "result_processing_ms": {
+              "type": "float"
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Field types for the AtScale engine log and query exporter fields (atscale.*)"
+  }
+}
