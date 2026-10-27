@@ -50,4 +50,5 @@ dashboard:
   engineTelemetry: false
   labels:
     grafana_dashboard: "1"
+  # For example grafana_folder: AtScale, if your Grafana sidecar sets folderAnnotation: grafana_folder
   annotations: {}
