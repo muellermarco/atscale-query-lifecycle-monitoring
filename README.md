@@ -279,6 +279,7 @@ The folder `deploy/elastic` has what Elasticsearch needs. The ingest pipelines p
 | `component-template-atscale-logs-mappings.json` | Field types for the `atscale.*` fields |
 | `index-template-logs-atscale.json` | Index template for the data streams `logs-atscale.*-*` |
 | `agent-inputs.yml` | Elastic Agent inputs for the engine and exporter containers, with the multiline setting for the engine log |
+| `filebeat-autodiscover.yml` | The same for Filebeat 8.x: autodiscover templates with index, pipeline and multiline setting |
 
 To set it up:
 
@@ -287,7 +288,7 @@ To set it up:
 2. Load the field types: `PUT _component_template/atscale-logs@mappings` with `component-template-atscale-logs-mappings.json`.
 3. Optional: put your retention policy and replica count into `PUT _component_template/atscale-logs@settings`.
 4. Load the index template: `PUT _index_template/logs-atscale` with `index-template-logs-atscale.json`.
-5. Add the inputs from `agent-inputs.yml` to your Elastic Agent policy.
+5. Add the inputs from `agent-inputs.yml` to your Elastic Agent policy, or the templates from `filebeat-autodiscover.yml` to your Filebeat autodiscover configuration.
 
    Result: documents arrive in `logs-atscale.engine-default` and `logs-atscale.exporter-default`.
 

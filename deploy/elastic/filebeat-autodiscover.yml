@@ -1,0 +1,50 @@
+# Filebeat (8.x) autodiscover templates for the AtScale engine log and the query exporter.
+# Add the two templates to the kubernetes provider of your filebeat.autodiscover. Filebeat needs the
+# container log folders (/var/log/containers, /var/log/pods) mounted and NODE_NAME set.
+# - engine:   one event per multi-line engine entry (a new entry starts with a timestamp)
+#             -> data stream logs-atscale.engine-default, ingest pipeline atscale-engine
+# - exporter: one JSON line per query -> logs-atscale.exporter-default, ingest pipeline atscale-exporter
+# The input-level index and pipeline override your output defaults only for these two containers.
+# Change the container names if yours differ ("engine" is the AtScale chart's engine container).
+filebeat.autodiscover:
+  providers:
+    - type: kubernetes
+      node: ${NODE_NAME}
+      templates:
+        - condition:
+            equals:
+              kubernetes.container.name: engine
+          config:
+            - type: filestream
+              id: atscale-engine-${data.kubernetes.container.id}
+              paths:
+                - /var/log/containers/*-${data.kubernetes.container.id}.log
+              prospector.scanner.symlinks: true
+              index: logs-atscale.engine-default
+              pipeline: atscale-engine
+              parsers:
+                - container:
+                    stream: all
+                    format: auto
+                - multiline:
+                    type: pattern
+                    pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} '
+                    negate: true
+                    match: after
+                    max_lines: 2000
+                    timeout: 3s
+        - condition:
+            equals:
+              kubernetes.container.name: exporter
+          config:
+            - type: filestream
+              id: atscale-exporter-${data.kubernetes.container.id}
+              paths:
+                - /var/log/containers/*-${data.kubernetes.container.id}.log
+              prospector.scanner.symlinks: true
+              index: logs-atscale.exporter-default
+              pipeline: atscale-exporter
+              parsers:
+                - container:
+                    stream: all
+                    format: auto
