@@ -317,6 +317,8 @@ To set it up:
 
 7. Import the dashboard and select the two data sources at the top.
 
+The user that Filebeat or Elastic Agent writes with needs the index privileges `create_doc`, `auto_configure` and `view_index_metadata` on `logs-atscale.*`. Default Filebeat roles often cover only `filebeat-*`.
+
 Load the pipelines (step 1) before the agent sends data. Documents that arrive earlier are stored without the `atscale.*` fields.
 
 To filter the engine log by namespace, enter a Lucene query in `Engine log filter`, for example `kubernetes.namespace:atscale`. The ingest pipelines compute the runtime and score buckets that `dashboard/generate.py` uses. If you change the buckets there, change the scripts in both pipelines too. With the Helm chart, set `dashboard.elasticsearch: true` to ship this dashboard.
